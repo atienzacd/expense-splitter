@@ -14,13 +14,21 @@ const app = await buildApp({
 });
 
 // Finish in-flight requests and close the database pool on Ctrl+C or `docker stop`.
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.once(signal, async () => {
-    app.log.info(`${signal} received, shutting down`);
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  app.log.info(`${signal} received, shutting down`);
+  try {
     await app.close();
     await prisma.$disconnect();
     process.exit(0);
-  });
+  } catch (error) {
+    // Without this, a failure while closing would be an unhandled rejection.
+    app.log.error(error, "error during shutdown");
+    process.exit(1);
+  }
+}
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => void shutdown(signal));
 }
 
 await app.listen({ host: config.HOST, port: config.PORT });

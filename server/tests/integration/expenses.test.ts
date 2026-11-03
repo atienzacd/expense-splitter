@@ -251,9 +251,9 @@ describe("database constraints", () => {
   it("refuse impossible money even if the API is bypassed", async () => {
     await expect(
       ctx.prisma.expense.create({ data: { groupId, paidById: ana.id, description: "Bad", amount: 0, splitType: "EQUAL" } }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/expenses_amount_positive/);
     await expect(
       ctx.prisma.settlement.create({ data: { groupId, fromUserId: ana.id, toUserId: ana.id, amount: 100 } }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(/settlements_different_people/);
   });
 });

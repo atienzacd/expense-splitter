@@ -33,11 +33,8 @@ export function ThemeToggle() {
   const [theme, setTheme] = useTheme();
 
   return (
-    <div
-      role="group"
-      aria-label="Color theme"
-      className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800"
-    >
+    <fieldset className="flex rounded-lg border border-slate-200 bg-slate-100 p-0.5 dark:border-slate-700 dark:bg-slate-800">
+      <legend className="sr-only">Color theme</legend>
       {OPTIONS.map((option) => {
         const active = theme === option.value;
         return (
@@ -70,6 +67,6 @@ export function ThemeToggle() {
           </button>
         );
       })}
-    </div>
+    </fieldset>
   );
 }

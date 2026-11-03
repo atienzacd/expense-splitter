@@ -1,0 +1,43 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "jsx-a11y", "import", "unicorn", "oxc", "vitest"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn"
+  },
+  "rules": {
+    "eqeqeq": "error",
+    "no-console": "error",
+    "react/rules-of-hooks": "error",
+    "react/exhaustive-deps": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "typescript/await-thenable": "error",
+    "typescript/consistent-type-imports": "error",
+
+    // Not applicable to this stack:
+    // React 17+ compiles JSX without `import React`.
+    "react/react-in-jsx-scope": "off",
+    // Written for Express; Fastify awaits async handlers and routes their errors.
+    "oxc/no-async-endpoint-handlers": "off",
+    // Side-effect imports (CSS, test matchers) are intentional.
+    "import/no-unassigned-import": "off",
+
+    // Deliberately off:
+    // Assertions are used at trust boundaries (JSON from our own API, test
+    // doubles); TypeScript strict mode and Zod validation cover the rest.
+    "typescript/no-unsafe-type-assertion": "off",
+    // Flags exhaustive switches and React effect cleanups, which are correct.
+    "typescript/consistent-return": "off",
+    // Sorting arrays we just created is safe; toSorted needs a newer lib target.
+    "unicorn/no-array-sort": "off"
+  },
+  "overrides": [
+    {
+      // Small helpers inside a describe block keep each test file readable.
+      "files": ["**/*.test.ts", "**/*.test.tsx", "**/tests/**"],
+      "rules": { "unicorn/consistent-function-scoping": "off" }
+    }
+  ],
+  "ignorePatterns": ["**/dist/**", "server/src/generated/**", "client/public/**"]
+}
