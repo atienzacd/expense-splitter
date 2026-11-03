@@ -1,13 +1,29 @@
 import helmet from "@fastify/helmet";
+import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import { ZodError } from "zod";
+import type { PrismaClient } from "./db.ts";
 import { SettleError } from "./lib/settle.ts";
 import { SplitError } from "./lib/split.ts";
+import { createAuthenticate } from "./modules/auth/authenticate.ts";
+import { authRoutes } from "./modules/auth/routes.ts";
+import { createTokenSigner } from "./modules/auth/tokens.ts";
 
 export type AppOptions = {
-  /** Resolves if the database is reachable, rejects otherwise. */
-  checkDatabase: () => Promise<void>;
+  prisma: PrismaClient;
+  jwtSecret: string;
+  jwtExpiresIn?: string;
+  /** Resolves if the database is reachable, rejects otherwise. Defaults to a `SELECT 1`. */
+  checkDatabase?: () => Promise<void>;
+  /** Attempts allowed per IP on login and register. */
+  authRateLimit?: { max: number; timeWindow: string };
   logger?: FastifyServerOptions["logger"];
+};
+
+const CLIENT_ERROR_NAMES: Record<number, string> = {
+  413: "PayloadTooLarge",
+  415: "UnsupportedMediaType",
+  429: "TooManyRequests",
 };
 
 /**
@@ -15,9 +31,18 @@ export type AppOptions = {
  * `app.inject()` without opening a network port.
  */
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
+  const { prisma } = options;
+  const checkDatabase =
+    options.checkDatabase ??
+    (async () => {
+      await prisma.$queryRaw`SELECT 1`;
+    });
+
   const app = Fastify({ logger: options.logger ?? false });
 
   await app.register(helmet);
+  // Off by default; individual routes such as login opt in.
+  await app.register(rateLimit, { global: false });
 
   // Every error response has the same shape: { error, message, issues? }.
   app.setErrorHandler((error, request, reply) => {
@@ -34,7 +59,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     if (error instanceof Error && "statusCode" in error) {
       const statusCode = Number(error.statusCode);
       if (statusCode >= 400 && statusCode < 500) {
-        return reply.status(statusCode).send({ error: "BadRequest", message: error.message });
+        const name = CLIENT_ERROR_NAMES[statusCode] ?? "BadRequest";
+        return reply.status(statusCode).send({ error: name, message: error.message });
       }
     }
     // Unexpected errors are logged in full but never leaked to the client.
@@ -48,12 +74,23 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   app.get("/health", async (request, reply) => {
     try {
-      await options.checkDatabase();
+      await checkDatabase();
       return { status: "ok", database: "ok" };
     } catch (error) {
       request.log.error(error, "database health check failed");
       return reply.status(503).send({ status: "error", database: "unreachable" });
     }
+  });
+
+  const tokens = createTokenSigner(options.jwtSecret, options.jwtExpiresIn ?? "1d");
+  app.decorateRequest("userId", "");
+
+  await app.register(authRoutes, {
+    prefix: "/auth",
+    prisma,
+    tokens,
+    authenticate: createAuthenticate(tokens),
+    rateLimit: options.authRateLimit ?? { max: 10, timeWindow: "1 minute" },
   });
 
   return app;

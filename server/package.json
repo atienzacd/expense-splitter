@@ -9,14 +9,15 @@
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest --project unit",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "dev": "node --env-file=.env --watch src/index.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "test:integration": "vitest run --project integration"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
@@ -26,9 +27,11 @@
   },
   "dependencies": {
     "@fastify/helmet": "^13.2.0",
+    "@fastify/rate-limit": "^11.2.2",
     "@prisma/adapter-pg": "^7.10.1",
     "@prisma/client": "^7.10.1",
     "fastify": "^5.12.8",
+    "jose": "^6.2.15",
     "zod": "^4.6.7"
   },
   "allowScripts": {
