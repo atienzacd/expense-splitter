@@ -1,0 +1,19 @@
+# Local development database. The app service is added in a later milestone.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: splitter
+      POSTGRES_PASSWORD: splitter
+      POSTGRES_DB: splitter
+    ports:
+      - "5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U splitter"]
+      interval: 5s
+      retries: 10
+
+volumes:
+  db-data:
