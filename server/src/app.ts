@@ -3,11 +3,15 @@ import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
 import { ZodError } from "zod";
 import type { PrismaClient } from "./db.ts";
+import { HttpError } from "./errors.ts";
 import { SettleError } from "./lib/settle.ts";
 import { SplitError } from "./lib/split.ts";
 import { createAuthenticate } from "./modules/auth/authenticate.ts";
 import { authRoutes } from "./modules/auth/routes.ts";
 import { createTokenSigner } from "./modules/auth/tokens.ts";
+import { balanceRoutes } from "./modules/balances/routes.ts";
+import { expenseRoutes } from "./modules/expenses/routes.ts";
+import { groupRoutes } from "./modules/groups/routes.ts";
 
 export type AppOptions = {
   prisma: PrismaClient;
@@ -53,6 +57,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
         issues: error.issues.map((issue) => ({ path: issue.path.join("."), message: issue.message })),
       });
     }
+    if (error instanceof HttpError) {
+      return reply.status(error.statusCode).send({ error: error.code, message: error.message });
+    }
     if (error instanceof SplitError || error instanceof SettleError) {
       return reply.status(400).send({ error: error.name, message: error.message });
     }
@@ -83,15 +90,22 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   const tokens = createTokenSigner(options.jwtSecret, options.jwtExpiresIn ?? "1d");
+  const authenticate = createAuthenticate(tokens);
+  const authRateLimit = options.authRateLimit ?? { max: 10, timeWindow: "1 minute" };
   app.decorateRequest("userId", "");
 
-  await app.register(authRoutes, {
-    prefix: "/auth",
-    prisma,
-    tokens,
-    authenticate: createAuthenticate(tokens),
-    rateLimit: options.authRateLimit ?? { max: 10, timeWindow: "1 minute" },
-  });
+  await app.register(authRoutes, { prefix: "/auth", prisma, tokens, authenticate, rateLimit: authRateLimit });
+
+  // Everything under /groups requires a logged-in user.
+  await app.register(
+    async (groups) => {
+      groups.addHook("preHandler", authenticate);
+      await groups.register(groupRoutes, { prisma, lookupRateLimit: authRateLimit });
+      await groups.register(expenseRoutes, { prisma });
+      await groups.register(balanceRoutes, { prisma });
+    },
+    { prefix: "/groups" },
+  );
 
   return app;
 }

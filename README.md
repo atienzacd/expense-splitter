@@ -2,7 +2,7 @@
 
 Split shared expenses with friends, roommates or travel buddies, and see the fewest payments needed to settle up.
 
-> 🚧 Work in progress. The core logic, database and authentication are done; the groups and expenses API is next.
+> 🚧 Work in progress. The backend API is complete; the React frontend is next.
 
 ## Highlights
 
@@ -37,20 +37,43 @@ npm run dev                      # http://127.0.0.1:3000/health
 
 ## API
 
-| Method | Path             | Auth | Description                          |
-| ------ | ---------------- | ---- | ------------------------------------ |
-| GET    | `/health`        | –    | Server and database status           |
-| POST   | `/auth/register` | –    | Create an account, returns a token   |
-| POST   | `/auth/login`    | –    | Log in, returns a token              |
-| GET    | `/auth/me`       | ✔    | The logged-in user                   |
+| Method | Path                                  | Auth | Description                                       |
+| ------ | ------------------------------------- | ---- | ------------------------------------------------- |
+| GET    | `/health`                             | –    | Server and database status                        |
+| POST   | `/auth/register`                      | –    | Create an account, returns a token                |
+| POST   | `/auth/login`                         | –    | Log in, returns a token                           |
+| GET    | `/auth/me`                            | ✔    | The logged-in user                                |
+| GET    | `/groups`                             | ✔    | Groups you belong to                              |
+| POST   | `/groups`                             | ✔    | Create a group (you become its first member)      |
+| GET    | `/groups/:groupId`                    | ✔    | Group details and members                         |
+| POST   | `/groups/:groupId/members`            | ✔    | Add someone by email                              |
+| GET    | `/groups/:groupId/expenses`           | ✔    | Expenses, newest first                            |
+| POST   | `/groups/:groupId/expenses`           | ✔    | Add an expense (equal, exact or percentage split) |
+| DELETE | `/groups/:groupId/expenses/:expenseId`| ✔    | Delete an expense                                 |
+| GET    | `/groups/:groupId/balances`           | ✔    | Each member's balance and the fewest payments     |
+| GET    | `/groups/:groupId/settlements`        | ✔    | Recorded payments, newest first                   |
+| POST   | `/groups/:groupId/settlements`        | ✔    | Record a payment you made to a member             |
 
-Send the token as `Authorization: Bearer <token>`. Errors always look like `{ "error": "EmailTaken", "message": "..." }`.
+Send the token as `Authorization: Bearer <token>`. All amounts are **whole centavos** (₱150.75 → `15075`). Errors always look like `{ "error": "EmailTaken", "message": "..." }`. Only members can see or change a group; to anyone else it returns the same 404 as a group that doesn't exist.
+
+Adding an expense:
+
+```json
+{
+  "description": "Dinner",
+  "amount": 300000,
+  "paidById": "optional, defaults to you",
+  "split": { "type": "EQUAL" }
+}
+```
+
+`split` can also be `{ "type": "EQUAL", "userIds": [...] }`, `{ "type": "EXACT", "shares": [{ "userId": "...", "amount": 1000 }] }` or `{ "type": "PERCENTAGE", "shares": [{ "userId": "...", "percent": 33.33 }] }`.
 
 ## Roadmap
 
 - [x] Split and settlement logic with tests
 - [x] Database schema (Prisma) and Fastify server
 - [x] Authentication (register, login, JWT)
-- [ ] Groups, expenses and balances API
+- [x] Groups, expenses and balances API
 - [ ] React frontend
 - [ ] Docker image (amd64 + arm64), image scanning, live demo
