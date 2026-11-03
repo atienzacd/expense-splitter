@@ -14,11 +14,11 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 
 ## Tech stack
 
-Node.js 22 · TypeScript · Vitest · PostgreSQL (Docker) · GitHub Actions
+Node.js 26 · TypeScript · Vitest · PostgreSQL (Docker) · GitHub Actions
 
 ## Getting started
 
-Requirements: Node.js 22+ and Docker.
+Requirements: Node.js 26+ and Docker.
 
 ```bash
 cd server
