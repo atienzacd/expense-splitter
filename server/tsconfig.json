@@ -10,7 +10,14 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "types": ["node"],
-    "noEmit": true
+    "noEmit": true,
+
+    // Node 26 runs .ts files directly (type stripping). These keep the code
+    // compatible with that, and make `tsc` rewrite .ts imports to .js on build.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
+    "erasableSyntaxOnly": true,
+    "verbatimModuleSyntax": true
   },
   "include": ["src", "tests", "prisma.config.ts"]
 }

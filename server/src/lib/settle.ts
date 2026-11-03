@@ -6,7 +6,7 @@
  * always add up to zero.
  */
 
-import type { Share } from "./split.js";
+import type { Share } from "./split.ts";
 
 export type ExpenseRecord = { paidById: string; amount: number; splits: Share[] };
 export type SettlementRecord = { fromUserId: string; toUserId: string; amount: number };

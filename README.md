@@ -28,9 +28,10 @@ npm ci
 npm run db:migrate               # create the tables
 npm run db:generate              # generate the typed database client
 npm test
+npm run dev                      # http://127.0.0.1:3000/health
 ```
 
-Browse the data with `npm run db:studio`.
+`npm run dev` runs the TypeScript source directly with Node's built-in type stripping and restarts on save. Browse the data with `npm run db:studio`.
 
 ## Roadmap
 

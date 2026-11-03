@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SplitError, splitByPercentage, splitEqually, splitExact } from "../src/lib/split.js";
+import { SplitError, splitByPercentage, splitEqually, splitExact } from "../src/lib/split.ts";
 
 const sum = (shares: { amountOwed: number }[]) => shares.reduce((acc, s) => acc + s.amountOwed, 0);
 

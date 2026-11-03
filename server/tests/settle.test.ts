@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { SettleError, computeBalances, simplifyDebts, type ExpenseRecord } from "../src/lib/settle.js";
-import { splitEqually } from "../src/lib/split.js";
+import { SettleError, computeBalances, simplifyDebts, type ExpenseRecord } from "../src/lib/settle.ts";
+import { splitEqually } from "../src/lib/split.ts";
 
 describe("computeBalances", () => {
   it("credits the payer and debits everyone in the split", () => {
