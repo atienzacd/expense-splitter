@@ -21,16 +21,16 @@ Node.js 26 · TypeScript · Vitest · PostgreSQL (Docker) · GitHub Actions
 Requirements: Node.js 26+ and Docker.
 
 ```bash
+docker compose up -d db          # start PostgreSQL
 cd server
+cp .env.example .env             # local settings
 npm ci
+npm run db:migrate               # create the tables
+npm run db:generate              # generate the typed database client
 npm test
 ```
 
-Start the local database:
-
-```bash
-docker compose up -d db
-```
+Browse the data with `npm run db:studio`.
 
 ## Roadmap
 
