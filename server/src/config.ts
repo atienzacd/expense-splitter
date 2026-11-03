@@ -5,6 +5,8 @@ const envSchema = z.object({
   // 127.0.0.1 keeps the dev server off your network; Docker sets 0.0.0.0.
   HOST: z.string().default("127.0.0.1"),
   PORT: z.coerce.number().int().min(1).max(65_535).default(3000),
+  // Only enable behind a reverse proxy you control, or clients can fake their IP.
+  TRUST_PROXY: z.stringbool().default(false),
   LOG_LEVEL: z.enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"]).default("info"),
   // Signs login tokens. Anyone with this value can log in as any user.
   JWT_SECRET: z.string().min(32, "JWT_SECRET must be at least 32 characters"),

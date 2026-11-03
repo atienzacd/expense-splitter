@@ -1,4 +1,5 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
+import { logSecurityEvent } from "../../security.ts";
 import type { TokenSigner } from "./tokens.ts";
 
 declare module "fastify" {
@@ -19,6 +20,10 @@ export function createAuthenticate(tokens: TokenSigner) {
     const userId = token ? await tokens.verify(token) : null;
 
     if (!userId) {
+      logSecurityEvent(request, "auth.token_rejected", {
+        reason: token ? "invalid_or_expired" : "missing",
+        route: request.routeOptions.url,
+      });
       return reply.status(401).send({ error: "Unauthorized", message: "Log in to continue" });
     }
     request.userId = userId;

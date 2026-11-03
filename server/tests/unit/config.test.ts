@@ -12,6 +12,7 @@ describe("loadConfig", () => {
       ...required,
       HOST: "127.0.0.1",
       PORT: 3000,
+      TRUST_PROXY: false,
       LOG_LEVEL: "info",
       JWT_EXPIRES_IN: "1d",
     });

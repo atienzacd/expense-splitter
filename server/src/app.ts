@@ -1,9 +1,10 @@
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import Fastify, { type FastifyInstance, type FastifyServerOptions } from "fastify";
+import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import type { PrismaClient } from "./db.ts";
 import { HttpError } from "./errors.ts";
+import { logSecurityEvent, REDACTED_LOG_PATHS } from "./security.ts";
 import { SettleError } from "./lib/settle.ts";
 import { SplitError } from "./lib/split.ts";
 import { createAuthenticate } from "./modules/auth/authenticate.ts";
@@ -19,10 +20,21 @@ export type AppOptions = {
   jwtExpiresIn?: string;
   /** Resolves if the database is reachable, rejects otherwise. Defaults to a `SELECT 1`. */
   checkDatabase?: () => Promise<void>;
-  /** Attempts allowed per IP on login and register. */
-  authRateLimit?: { max: number; timeWindow: string };
-  logger?: FastifyServerOptions["logger"];
+  /** Requests allowed per IP across the whole API (health checks excluded). */
+  globalRateLimit?: RateLimit;
+  /** Attempts allowed per IP on login, register and adding members by email. */
+  authRateLimit?: RateLimit;
+  /** Trust X-Forwarded-For from a reverse proxy, so rate limits see real client IPs. */
+  trustProxy?: boolean;
+  logger?: false | { level: string; stream?: { write(line: string): void } };
 };
+
+type RateLimit = { max: number; timeWindow: string };
+
+// Requests carry small JSON only; anything larger is rejected before parsing.
+const BODY_LIMIT_BYTES = 16 * 1024;
+// Slow or stalled requests are cut off instead of holding a connection open.
+const REQUEST_TIMEOUT_MS = 30_000;
 
 const CLIENT_ERROR_NAMES: Record<number, string> = {
   413: "PayloadTooLarge",
@@ -42,11 +54,20 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       await prisma.$queryRaw`SELECT 1`;
     });
 
-  const app = Fastify({ logger: options.logger ?? false });
+  const app = Fastify({
+    logger: options.logger ? { ...options.logger, redact: { paths: REDACTED_LOG_PATHS } } : false,
+    bodyLimit: BODY_LIMIT_BYTES,
+    requestTimeout: REQUEST_TIMEOUT_MS,
+    trustProxy: options.trustProxy ?? false,
+  });
 
   await app.register(helmet);
-  // Off by default; individual routes such as login opt in.
-  await app.register(rateLimit, { global: false });
+  // A generous limit on every route; login and similar routes set stricter ones.
+  const globalRateLimit = options.globalRateLimit ?? { max: 300, timeWindow: "1 minute" };
+  await app.register(rateLimit, {
+    ...globalRateLimit,
+    onExceeded: (request) => logSecurityEvent(request, "rate_limit.exceeded", { route: request.routeOptions.url }),
+  });
 
   // Every error response has the same shape: { error, message, issues? }.
   app.setErrorHandler((error, request, reply) => {
@@ -58,6 +79,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       });
     }
     if (error instanceof HttpError) {
+      if (error.code === "GroupNotFound") {
+        logSecurityEvent(request, "access.denied", { userId: request.userId, route: request.routeOptions.url });
+      }
       return reply.status(error.statusCode).send({ error: error.code, message: error.message });
     }
     if (error instanceof SplitError || error instanceof SettleError) {
@@ -79,7 +103,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     reply.status(404).send({ error: "NotFound", message: `Route ${request.method} ${request.url} not found` }),
   );
 
-  app.get("/health", async (request, reply) => {
+  // Monitoring polls this often, so it is exempt from rate limiting.
+  app.get("/health", { config: { rateLimit: false } }, async (request, reply) => {
     try {
       await checkDatabase();
       return { status: "ok", database: "ok" };

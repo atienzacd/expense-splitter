@@ -9,6 +9,7 @@ const app = await buildApp({
   prisma,
   jwtSecret: config.JWT_SECRET,
   jwtExpiresIn: config.JWT_EXPIRES_IN,
+  trustProxy: config.TRUST_PROXY,
   logger: { level: config.LOG_LEVEL },
 });
 

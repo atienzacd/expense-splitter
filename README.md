@@ -10,6 +10,7 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 - **Three ways to split**: equally, by exact amounts, or by percentage (up to 2 decimals). Leftover centavos are distributed with the largest remainder method.
 - **Debt simplification**: if Ana owes Ben ₱500 and Ben owes Cara ₱500, the app just tells Ana to pay Cara. A greedy algorithm settles a group of _n_ people in at most _n − 1_ payments.
 - **Secure authentication**: argon2id password hashing (Node's built-in implementation, OWASP settings), short-lived JWTs, rate-limited login, and identical responses and timing for "wrong password" and "no such account".
+- **ISO 27001-aligned**: the applicable Annex A technological controls (access control, secure authentication, security event logging with secret redaction, input and rate limits, vulnerability management, CodeQL scanning) are implemented and mapped in [SECURITY.md](SECURITY.md), including the known gaps.
 - **Tested at two levels**: fast unit tests on Linux, Windows and macOS, plus integration tests against a real PostgreSQL database in CI.
 - **Dependency security**: CI fails on any high or critical `npm audit` finding, Dependabot opens weekly update PRs, and package install scripts are blocked unless explicitly allowed.
 
