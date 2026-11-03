@@ -1,4 +1,5 @@
 import { Link, Outlet } from "react-router";
+import { ThemeToggle } from "./ThemeToggle.tsx";
 
 export function Layout() {
   return (
@@ -12,6 +13,7 @@ export function Layout() {
             <img src="/favicon.svg" alt="" className="size-7" />
             Expense Splitter
           </Link>
+          <ThemeToggle />
         </div>
       </header>
 

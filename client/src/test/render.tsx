@@ -15,6 +15,30 @@ export function renderAt(path: string) {
   );
 }
 
+/**
+ * Pretends the device is in light or dark mode. Returns a function that
+ * switches the device setting later, firing the change event like a browser.
+ */
+export function mockSystemTheme(initial: "light" | "dark") {
+  let dark = initial === "dark";
+  const listeners = new Set<() => void>();
+  vi.stubGlobal(
+    "matchMedia",
+    vi.fn((query: string) => ({
+      get matches() {
+        return query.includes("dark") ? dark : !dark;
+      },
+      media: query,
+      addEventListener: (_type: string, listener: () => void) => listeners.add(listener),
+      removeEventListener: (_type: string, listener: () => void) => listeners.delete(listener),
+    })),
+  );
+  return (next: "light" | "dark") => {
+    dark = next === "dark";
+    for (const listener of listeners) listener();
+  };
+}
+
 /** Replaces `fetch` with one that answers every request with `status` and `body`. */
 export function mockFetch(status: number, body?: unknown) {
   const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
