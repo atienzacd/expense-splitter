@@ -1,11 +1,33 @@
+import { isIP } from "node:net";
 import { z } from "zod";
 
+const DURATION = /^[1-9]\d*[smhd]$/;
 const DURATION_SECONDS = { s: 1, m: 60, h: 3600, d: 86_400 } as const;
 const MAX_TOKEN_LIFETIME_SECONDS = 7 * 86_400;
 
 function durationSeconds(value: string): number {
   const unit = value.at(-1) as keyof typeof DURATION_SECONDS;
   return Number(value.slice(0, -1)) * DURATION_SECONDS[unit];
+}
+
+// Named ranges understood by Fastify's proxy-addr: this machine, link-local
+// and private networks. Each only covers addresses a public client can't use.
+const PROXY_RANGE_NAMES = new Set(["loopback", "linklocal", "uniquelocal"]);
+// The widest ranges accepted. Anything wider (like 0.0.0.0/0, "everyone")
+// would let ordinary clients set their own IP, the same as trusting everybody.
+const MIN_PREFIX = { 4: 8, 6: 16 } as const;
+
+function isTrustedProxyEntry(entry: string): boolean {
+  if (PROXY_RANGE_NAMES.has(entry)) return true;
+
+  const [address = "", prefix, ...rest] = entry.split("/");
+  const family = isIP(address);
+  if (family === 0 || rest.length > 0) return false;
+  if (prefix === undefined) return true;
+
+  const [minPrefix, maxPrefix] = family === 4 ? [MIN_PREFIX[4], 32] : [MIN_PREFIX[6], 128];
+  const bits = Number(prefix);
+  return /^\d{1,3}$/.test(prefix) && bits >= minPrefix && bits <= maxPrefix;
 }
 
 const envSchema = z.object({
@@ -25,13 +47,13 @@ const envSchema = z.object({
     .default("false")
     .transform((value, ctx) => {
       if (value === "false" || value === "") return false as const;
-      const ipv4 = String.raw`\d{1,3}(?:\.\d{1,3}){3}`;
-      const ipv6 = String.raw`[\da-fA-F]*:[\da-fA-F:.]*`;
-      const entry = String.raw`(?:(?:${ipv4}|${ipv6})(?:/\d{1,3})?|loopback|linklocal|uniquelocal)`;
-      if (new RegExp(String.raw`^${entry}(?:\s*,\s*${entry})*$`).test(value)) return value;
+      const invalid = value.split(",").map((entry) => entry.trim()).filter((entry) => !isTrustedProxyEntry(entry));
+      if (invalid.length === 0) return value;
       ctx.addIssue({
         code: "custom",
-        message: 'Use "false" or the proxy IP addresses, e.g. "10.0.0.0/8" or "loopback"',
+        message:
+          `Not a valid proxy address: ${invalid.join(", ")}. Use "false" or the proxy's own addresses, ` +
+          'e.g. "10.1.2.3", "10.0.0.0/8" or "loopback". Ranges wider than /8 (IPv4) or /16 (IPv6) are refused.',
       });
       return z.NEVER;
     }),
@@ -46,8 +68,9 @@ const envSchema = z.object({
   // How long a login lasts, e.g. "15m", "12h", "7d". Capped at 7 days.
   JWT_EXPIRES_IN: z
     .string()
-    .regex(/^[1-9]\d*[smhd]$/, 'Use a duration like "15m", "12h" or "7d"')
-    .refine((value) => durationSeconds(value) <= MAX_TOKEN_LIFETIME_SECONDS, {
+    .regex(DURATION, 'Use a duration like "15m", "12h" or "7d"')
+    // Only checked for well-formed durations, so a typo gets one clear message.
+    .refine((value) => !DURATION.test(value) || durationSeconds(value) <= MAX_TOKEN_LIFETIME_SECONDS, {
       message: "JWT_EXPIRES_IN can be at most 7 days",
     })
     .default("1d"),

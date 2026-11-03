@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { PrismaClient } from "../../db.ts";
 import { HttpError } from "../../errors.ts";
+import { email, publicUserSelect } from "../../lib/schemas.ts";
 import { logSecurityEvent } from "../../security.ts";
 import { Prisma } from "../../generated/prisma/client.ts";
 import { groupParams, requireMembership } from "./membership.ts";
@@ -13,9 +14,8 @@ export type GroupRoutesOptions = {
 };
 
 const createGroupBody = z.object({ name: z.string().trim().min(1).max(100) });
-const addMemberBody = z.object({ email: z.string().trim().toLowerCase().pipe(z.email()) });
+const addMemberBody = z.object({ email });
 
-const publicUser = { id: true, name: true, email: true } as const;
 
 export async function groupRoutes(app: FastifyInstance, { prisma, lookupRateLimit }: GroupRoutesOptions): Promise<void> {
   app.get("/", async (request) => {
@@ -53,7 +53,7 @@ export async function groupRoutes(app: FastifyInstance, { prisma, lookupRateLimi
         name: true,
         createdAt: true,
         createdById: true,
-        members: { select: { joinedAt: true, user: { select: publicUser } }, orderBy: { joinedAt: "asc" } },
+        members: { select: { joinedAt: true, user: { select: publicUserSelect } }, orderBy: { joinedAt: "asc" } },
       },
     });
     const { members, ...rest } = group;
@@ -65,7 +65,7 @@ export async function groupRoutes(app: FastifyInstance, { prisma, lookupRateLimi
     const { email } = addMemberBody.parse(request.body);
     await requireMembership(prisma, groupId, request.userId);
 
-    const user = await prisma.user.findUnique({ where: { email }, select: publicUser });
+    const user = await prisma.user.findUnique({ where: { email }, select: publicUserSelect });
     if (!user) {
       throw new HttpError(404, "UserNotFound", "No account uses that email. Ask them to sign up first.");
     }

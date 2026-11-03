@@ -38,6 +38,26 @@ const BODY_LIMIT_BYTES = 16 * 1024;
 // Slow or stalled requests are cut off instead of holding a connection open.
 const REQUEST_TIMEOUT_MS = 30_000;
 
+// The health check reuses its database result for this long, so a burst of
+// health requests costs one query instead of tying up the connection pool.
+const HEALTH_CACHE_MS = 5_000;
+// Monitoring polls the health check often; it gets its own, higher limit.
+const HEALTH_RATE_LIMIT = { max: 120, timeWindow: "1 minute" };
+
+/** Runs `check` at most once per `ttlMs`; callers in between share the last outcome. */
+function cached(ttlMs: number, check: () => Promise<void>): () => Promise<void> {
+  let last: { at: number; result: Promise<void> } | undefined;
+  return () => {
+    const now = Date.now();
+    if (!last || now - last.at >= ttlMs) {
+      last = { at: now, result: check() };
+      // Keep an unobserved rejection from being reported; callers still see it.
+      last.result.catch(() => {});
+    }
+    return last.result;
+  };
+}
+
 const CLIENT_ERROR_NAMES: Record<number, string> = {
   413: "PayloadTooLarge",
   415: "UnsupportedMediaType",
@@ -50,11 +70,13 @@ const CLIENT_ERROR_NAMES: Record<number, string> = {
  */
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const { prisma } = options;
-  const checkDatabase =
+  const checkDatabase = cached(
+    HEALTH_CACHE_MS,
     options.checkDatabase ??
-    (async () => {
-      await prisma.$queryRaw`SELECT 1`;
-    });
+      (async () => {
+        await prisma.$queryRaw`SELECT 1`;
+      }),
+  );
 
   const app = Fastify({
     logger: options.logger ? { ...options.logger, redact: { paths: REDACTED_LOG_PATHS } } : false,
@@ -109,8 +131,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     reply.status(404).send({ error: "NotFound", message: "Not found" }),
   );
 
-  // Monitoring polls this often, so it is exempt from rate limiting.
-  app.get("/api/health", { config: { rateLimit: false } }, async (request, reply) => {
+  app.get("/api/health", { config: { rateLimit: HEALTH_RATE_LIMIT } }, async (request, reply) => {
     try {
       await checkDatabase();
       return { status: "ok", database: "ok" };

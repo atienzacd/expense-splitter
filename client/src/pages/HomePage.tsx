@@ -24,7 +24,10 @@ function ServerStatus() {
   const label = {
     checking: "Checking the server…",
     online: "Server online, database connected",
-    offline: "Server unavailable. Is it running? Try npm run dev:server.",
+    // The npm hint is for developers only; real users just see that it's down.
+    offline: import.meta.env.DEV
+      ? "Server unavailable. Is it running? Try npm run dev:server."
+      : "Server unavailable. Please try again in a moment.",
   }[state];
   const dot = { checking: "bg-slate-400", online: "bg-emerald-500", offline: "bg-red-500" }[state];
 

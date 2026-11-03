@@ -40,9 +40,18 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ ...required, JWT_SECRET: placeholder })).toThrow(/placeholder/);
   });
 
-  it("rejects an invalid token lifetime", () => {
-    expect(() => loadConfig({ ...required, JWT_EXPIRES_IN: "forever" })).toThrow(/JWT_EXPIRES_IN/);
+  it("rejects an invalid token lifetime with a single clear message", () => {
     expect(() => loadConfig({ ...required, JWT_EXPIRES_IN: "0m" })).toThrow(/JWT_EXPIRES_IN/);
+
+    const error = (() => {
+      try {
+        loadConfig({ ...required, JWT_EXPIRES_IN: "forever" });
+      } catch (e) {
+        return (e as Error).message;
+      }
+    })();
+    expect(error).toMatch(/Use a duration like/);
+    expect(error).not.toMatch(/at most 7 days/);
   });
 
   it("caps the token lifetime at 7 days", () => {
@@ -66,7 +75,22 @@ describe("TRUST_PROXY", () => {
     expect(trustProxy("::1")).toBe("::1");
   });
 
-  it.each(["true", "1", "*", "anything"])('refuses "%s", which wouldn\'t identify a real proxy', (value) => {
-    expect(() => trustProxy(value)).toThrow(/proxy IP addresses/);
+  it.each(["true", "1", "*", "anything", "999.1.1.1", ":", "10.0.0.1/33", "10.0.0.0/8/8", "10.0.0.1, nope"])(
+    'refuses "%s", which isn\'t a real proxy address',
+    (value) => {
+      expect(() => trustProxy(value)).toThrow(/Not a valid proxy address/);
+    },
+  );
+
+  it.each(["0.0.0.0/0", "::/0", "0.0.0.0/1", "10.0.0.0/7", "2001::/15"])(
+    'refuses "%s", a range so wide it would trust ordinary clients',
+    (value) => {
+      expect(() => trustProxy(value)).toThrow(/Ranges wider than/);
+    },
+  );
+
+  it("accepts the widest allowed ranges", () => {
+    expect(trustProxy("10.0.0.0/8")).toBe("10.0.0.0/8");
+    expect(trustProxy("fd00::/16")).toBe("fd00::/16");
   });
 });

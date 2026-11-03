@@ -1,6 +1,7 @@
 import type { FastifyInstance, preHandlerAsyncHookHandler } from "fastify";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "../../generated/prisma/client.ts";
+import { email, publicUserSelect } from "../../lib/schemas.ts";
 import { logSecurityEvent } from "../../security.ts";
 import { checkCredentials, hashPassword } from "./password.ts";
 import type { TokenSigner } from "./tokens.ts";
@@ -14,8 +15,6 @@ export type AuthRoutesOptions = {
   fingerprintEmail: (email: string) => string;
 };
 
-// Emails are compared case-insensitively by always storing them lowercased.
-const email = z.string().trim().toLowerCase().pipe(z.email().max(254));
 
 const registerBody = z.object({
   name: z.string().trim().min(1).max(100),
@@ -29,8 +28,6 @@ const loginBody = z.object({
   password: z.string().min(1).max(128),
 });
 
-// Never select passwordHash into a response by accident.
-const publicUser = { id: true, name: true, email: true } as const;
 
 export async function authRoutes(app: FastifyInstance, options: AuthRoutesOptions): Promise<void> {
   const { prisma, tokens, authenticate } = options;
@@ -43,7 +40,7 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
     try {
       const user = await prisma.user.create({
         data: { name: body.name, email: body.email, passwordHash },
-        select: publicUser,
+        select: publicUserSelect,
       });
       logSecurityEvent(request, "auth.registered", { userId: user.id });
       return reply.status(201).send({ user, token: await tokens.sign(user.id) });
@@ -74,7 +71,7 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
   });
 
   app.get("/me", { preHandler: authenticate }, async (request, reply) => {
-    const user = await prisma.user.findUnique({ where: { id: request.userId }, select: publicUser });
+    const user = await prisma.user.findUnique({ where: { id: request.userId }, select: publicUserSelect });
     if (!user) {
       return reply.status(401).send({ error: "Unauthorized", message: "Log in to continue" });
     }
