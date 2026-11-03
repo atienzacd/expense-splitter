@@ -27,6 +27,32 @@ export async function closeTestContext({ app, prisma }: TestContext): Promise<vo
   await prisma.$disconnect();
 }
 
+export type TestUser = { id: string; name: string; email: string; token: string };
+
+/** Registers a user through the API and returns their id and token. */
+export async function registerUser(app: FastifyInstance, name: string): Promise<TestUser> {
+  const email = `${name.toLowerCase()}@example.com`;
+  const response = await app.inject({
+    method: "POST",
+    url: "/auth/register",
+    payload: { name, email, password: "a-long-test-password" },
+  });
+  if (response.statusCode !== 201) throw new Error(`register ${name} failed: ${response.body}`);
+  const { user, token } = response.json();
+  return { ...user, token };
+}
+
+/** Sends an authenticated request as `user`. */
+export function as(app: FastifyInstance, user: TestUser) {
+  const send = (method: "GET" | "POST" | "DELETE", url: string, payload?: object) =>
+    app.inject({ method, url, payload, headers: { authorization: `Bearer ${user.token}` } });
+  return {
+    get: (url: string) => send("GET", url),
+    post: (url: string, payload: object) => send("POST", url, payload),
+    delete: (url: string) => send("DELETE", url),
+  };
+}
+
 /** Empties every table, so each test starts from a clean database. */
 export async function resetDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
