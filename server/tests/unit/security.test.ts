@@ -52,7 +52,7 @@ describe("request limits", () => {
   it("never rate limits the health check", async () => {
     await build({ globalRateLimit: { max: 1, timeWindow: "1 minute" } });
     for (let i = 0; i < 5; i++) {
-      expect((await app.inject({ method: "GET", url: "/health" })).statusCode).toBe(200);
+      expect((await app.inject({ method: "GET", url: "/api/health" })).statusCode).toBe(200);
     }
   });
 });
@@ -60,12 +60,12 @@ describe("request limits", () => {
 describe("security logging", () => {
   it("logs rejected tokens with the reason", async () => {
     await build();
-    await app.inject({ method: "GET", url: "/auth/me" });
-    await app.inject({ method: "GET", url: "/auth/me", headers: { authorization: "Bearer forged.token.here" } });
+    await app.inject({ method: "GET", url: "/api/auth/me" });
+    await app.inject({ method: "GET", url: "/api/auth/me", headers: { authorization: "Bearer forged.token.here" } });
 
     const rejected = logs.filter((line) => line.securityEvent === "auth.token_rejected");
     expect(rejected.map((line) => line.reason)).toEqual(["missing", "invalid_or_expired"]);
-    expect(rejected[0]).toMatchObject({ level: 40, route: "/auth/me", ip: expect.any(String) });
+    expect(rejected[0]).toMatchObject({ level: 40, route: "/api/auth/me", ip: expect.any(String) });
   });
 
   it("redacts secrets from log lines", async () => {

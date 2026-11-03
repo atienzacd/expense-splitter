@@ -8,22 +8,19 @@ on:
 permissions:
   contents: read
 
+# npm workspaces: one root lockfile installs both server/ and client/.
 jobs:
   audit:
     name: Dependency audit
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: server
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: server/package-lock.json
       - run: npm ci
-      - name: Fail on high or critical vulnerabilities
+      - name: Fail on high or critical vulnerabilities (server and client)
         run: npm audit --audit-level=high
 
   test:
@@ -33,9 +30,6 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
-    defaults:
-      run:
-        working-directory: server
     env:
       # Prisma's config needs a URL even for commands that don't connect.
       DATABASE_URL: postgresql://splitter:splitter@localhost:5432/splitter
@@ -45,9 +39,8 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: server/package-lock.json
       - run: npm ci
-      - run: npm run db:generate
+      - run: npm run db:generate -w server
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
@@ -70,9 +63,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-    defaults:
-      run:
-        working-directory: server
     env:
       DATABASE_URL: postgresql://splitter:splitter@localhost:5432/splitter_test
       TEST_DATABASE_URL: postgresql://splitter:splitter@localhost:5432/splitter_test
@@ -82,7 +72,6 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-          cache-dependency-path: server/package-lock.json
       - run: npm ci
-      - run: npm run db:generate
+      - run: npm run db:generate -w server
       - run: npm run test:integration

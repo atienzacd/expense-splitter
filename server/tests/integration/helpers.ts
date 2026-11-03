@@ -35,7 +35,7 @@ export async function registerUser(app: FastifyInstance, name: string): Promise<
   const email = `${name.toLowerCase()}@example.com`;
   const response = await app.inject({
     method: "POST",
-    url: "/auth/register",
+    url: "/api/auth/register",
     payload: { name, email, password: "a-long-test-password" },
   });
   if (response.statusCode !== 201) throw new Error(`register ${name} failed: ${response.body}`);

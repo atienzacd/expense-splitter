@@ -1,7 +1,8 @@
 version: 2
 updates:
+  # The root lockfile covers both workspaces (server/ and client/).
   - package-ecosystem: npm
-    directory: /server
+    directory: /
     schedule:
       interval: weekly
     groups:

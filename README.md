@@ -2,7 +2,7 @@
 
 Split shared expenses with friends, roommates or travel buddies, and see the fewest payments needed to settle up.
 
-> 🚧 Work in progress. The backend API is complete; the React frontend is next.
+> 🚧 Work in progress. The backend API is complete; the React frontend is being built.
 
 ## Highlights
 
@@ -16,44 +16,59 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 
 ## Tech stack
 
-Node.js 26 · TypeScript · Fastify · Prisma · PostgreSQL · Zod · Vitest · Docker · GitHub Actions
+**Server:** Node.js 26 · TypeScript · Fastify · Prisma · PostgreSQL · Zod
+
+**Client:** React · TypeScript · Vite · React Router · TanStack Query · Tailwind CSS
+
+**Tooling:** npm workspaces · Vitest · Testing Library · Docker · GitHub Actions · CodeQL
 
 ## Getting started
 
 Requirements: Node.js 26+ and Docker.
 
 ```bash
-docker compose up -d db          # start PostgreSQL
-cd server
-cp .env.example .env             # local settings; set your own JWT_SECRET
-npm ci
-npm run db:migrate               # create the tables
-npm run db:generate              # generate the typed database client
-npm test                         # unit tests
-npm run test:integration         # tests against a separate splitter_test database
-npm run dev                      # http://127.0.0.1:3000/health
+docker compose up -d db                  # start PostgreSQL
+cp server/.env.example server/.env       # local settings; set your own JWT_SECRET
+npm ci                                   # installs server and client (npm workspaces)
+npm run db:migrate -w server             # create the tables
+npm run db:generate -w server            # generate the typed database client
+npm test                                 # unit tests for server and client
+npm run test:integration                 # API tests against a separate splitter_test database
 ```
 
-`npm run dev` runs the TypeScript source directly with Node's built-in type stripping and restarts on save. Browse the data with `npm run db:studio`.
+Then run the API and the web app in two terminals:
+
+```bash
+npm run dev:server                       # API on http://127.0.0.1:3000/api
+npm run dev:client                       # app on http://localhost:5173
+```
+
+The web app forwards `/api` requests to the API, so in development and production alike the browser talks to a single origin. `npm run dev:server` runs the TypeScript source directly with Node's built-in type stripping and restarts on save. Browse the data with `npm run db:studio -w server`.
+
+```
+expense-splitter/
+├── server/   Fastify API, Prisma schema, unit and integration tests
+└── client/   React app (Vite, Tailwind), component tests
+```
 
 ## API
 
 | Method | Path                                  | Auth | Description                                       |
 | ------ | ------------------------------------- | ---- | ------------------------------------------------- |
-| GET    | `/health`                             | –    | Server and database status                        |
-| POST   | `/auth/register`                      | –    | Create an account, returns a token                |
-| POST   | `/auth/login`                         | –    | Log in, returns a token                           |
-| GET    | `/auth/me`                            | ✔    | The logged-in user                                |
-| GET    | `/groups`                             | ✔    | Groups you belong to                              |
-| POST   | `/groups`                             | ✔    | Create a group (you become its first member)      |
-| GET    | `/groups/:groupId`                    | ✔    | Group details and members                         |
-| POST   | `/groups/:groupId/members`            | ✔    | Add someone by email                              |
-| GET    | `/groups/:groupId/expenses`           | ✔    | Expenses, newest first                            |
-| POST   | `/groups/:groupId/expenses`           | ✔    | Add an expense (equal, exact or percentage split) |
-| DELETE | `/groups/:groupId/expenses/:expenseId`| ✔    | Delete an expense                                 |
-| GET    | `/groups/:groupId/balances`           | ✔    | Each member's balance and the fewest payments     |
-| GET    | `/groups/:groupId/settlements`        | ✔    | Recorded payments, newest first                   |
-| POST   | `/groups/:groupId/settlements`        | ✔    | Record a payment you made to a member             |
+| GET    | `/api/health`                             | –    | Server and database status                        |
+| POST   | `/api/auth/register`                      | –    | Create an account, returns a token                |
+| POST   | `/api/auth/login`                         | –    | Log in, returns a token                           |
+| GET    | `/api/auth/me`                            | ✔    | The logged-in user                                |
+| GET    | `/api/groups`                             | ✔    | Groups you belong to                              |
+| POST   | `/api/groups`                             | ✔    | Create a group (you become its first member)      |
+| GET    | `/api/groups/:groupId`                    | ✔    | Group details and members                         |
+| POST   | `/api/groups/:groupId/members`            | ✔    | Add someone by email                              |
+| GET    | `/api/groups/:groupId/expenses`           | ✔    | Expenses, newest first                            |
+| POST   | `/api/groups/:groupId/expenses`           | ✔    | Add an expense (equal, exact or percentage split) |
+| DELETE | `/api/groups/:groupId/expenses/:expenseId`| ✔    | Delete an expense                                 |
+| GET    | `/api/groups/:groupId/balances`           | ✔    | Each member's balance and the fewest payments     |
+| GET    | `/api/groups/:groupId/settlements`        | ✔    | Recorded payments, newest first                   |
+| POST   | `/api/groups/:groupId/settlements`        | ✔    | Record a payment you made to a member             |
 
 Send the token as `Authorization: Bearer <token>`. All amounts are **whole centavos** (₱150.75 → `15075`). Errors always look like `{ "error": "EmailTaken", "message": "..." }`. Only members can see or change a group; to anyone else it returns the same 404 as a group that doesn't exist.
 
@@ -76,5 +91,5 @@ Adding an expense:
 - [x] Database schema (Prisma) and Fastify server
 - [x] Authentication (register, login, JWT)
 - [x] Groups, expenses and balances API
-- [ ] React frontend
+- [ ] React frontend (in progress: app scaffold done)
 - [ ] Docker image (amd64 + arm64), image scanning, live demo

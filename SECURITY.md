@@ -28,7 +28,7 @@ ISO 27001 certifies an **organization's** information security management system
 | Control | How it is handled | Where | Status |
 | --- | --- | --- | --- |
 | 8.15 Logging | Structured security events: `auth.registered`, `auth.login_succeeded`, `auth.login_failed`, `auth.token_rejected`, `access.denied`, `rate_limit.exceeded`, `group.member_added`, `expense.deleted`. Each has the client IP and request id. | `security.ts` | ✅ |
-| 8.16 Monitoring activities | Failures and denials are logged at `warn` for alerting. `GET /health` checks the database for uptime monitoring. Log retention and alerting rules belong to the log platform. | `security.ts`, `app.ts` | 🟡 / ⬜ retention |
+| 8.16 Monitoring activities | Failures and denials are logged at `warn` for alerting. `GET /api/health` checks the database for uptime monitoring. Log retention and alerting rules belong to the log platform. | `security.ts`, `app.ts` | 🟡 / ⬜ retention |
 | 8.11 Data masking · 8.12 Data leakage prevention · 5.34 Privacy and PII | Passwords, password hashes, tokens and auth headers are redacted from logs. Emails in logs are replaced by a one-way fingerprint. Responses never include password hashes. Unexpected errors return a generic message. | `security.ts`, `app.ts` | ✅ |
 
 ### Secure development

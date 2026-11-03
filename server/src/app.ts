@@ -104,7 +104,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   );
 
   // Monitoring polls this often, so it is exempt from rate limiting.
-  app.get("/health", { config: { rateLimit: false } }, async (request, reply) => {
+  app.get("/api/health", { config: { rateLimit: false } }, async (request, reply) => {
     try {
       await checkDatabase();
       return { status: "ok", database: "ok" };
@@ -119,9 +119,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const authRateLimit = options.authRateLimit ?? { max: 10, timeWindow: "1 minute" };
   app.decorateRequest("userId", "");
 
-  await app.register(authRoutes, { prefix: "/auth", prisma, tokens, authenticate, rateLimit: authRateLimit });
+  await app.register(authRoutes, { prefix: "/api/auth", prisma, tokens, authenticate, rateLimit: authRateLimit });
 
-  // Everything under /groups requires a logged-in user.
+  // Everything under /api/groups requires a logged-in user.
   await app.register(
     async (groups) => {
       groups.addHook("preHandler", authenticate);
@@ -129,7 +129,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       await groups.register(expenseRoutes, { prisma });
       await groups.register(balanceRoutes, { prisma });
     },
-    { prefix: "/groups" },
+    { prefix: "/api/groups" },
   );
 
   return app;

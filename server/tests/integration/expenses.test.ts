@@ -32,9 +32,9 @@ beforeEach(async () => {
   cara = await registerUser(ctx.app, "Cara");
   outsider = await registerUser(ctx.app, "Olive");
 
-  groupId = (await as(ctx.app, ana).post("/groups", { name: "Barkada" })).json().group.id;
+  groupId = (await as(ctx.app, ana).post("/api/groups", { name: "Barkada" })).json().group.id;
   for (const user of [ben, cara]) {
-    await as(ctx.app, ana).post(`/groups/${groupId}/members`, { email: user.email });
+    await as(ctx.app, ana).post(`/api/groups/${groupId}/members`, { email: user.email });
   }
 });
 
@@ -43,7 +43,7 @@ const owed = (expense: { splits: { userId: string; amountOwed: number }[] }) =>
 
 describe("adding expenses", () => {
   it("splits equally between everyone by default", async () => {
-    const response = await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+    const response = await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
       description: "Dinner",
       amount: 10_000,
       split: { type: "EQUAL" },
@@ -57,7 +57,7 @@ describe("adding expenses", () => {
   });
 
   it("splits equally between chosen people, paid by someone else", async () => {
-    const response = await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+    const response = await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
       description: "Taxi",
       amount: 500,
       paidById: ben.id,
@@ -70,7 +70,7 @@ describe("adding expenses", () => {
   });
 
   it("supports exact amounts", async () => {
-    const response = await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+    const response = await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
       description: "Groceries",
       amount: 1000,
       split: {
@@ -85,7 +85,7 @@ describe("adding expenses", () => {
   });
 
   it("supports percentages", async () => {
-    const response = await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+    const response = await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
       description: "Rent",
       amount: 10_001,
       split: {
@@ -101,7 +101,7 @@ describe("adding expenses", () => {
   });
 
   it("rejects amounts that don't add up", async () => {
-    const response = await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+    const response = await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
       description: "Groceries",
       amount: 1000,
       split: { type: "EXACT", shares: [{ userId: ana.id, amount: 999 }] },
@@ -111,13 +111,13 @@ describe("adding expenses", () => {
   });
 
   it("rejects a payer or participant outside the group", async () => {
-    const outsiderPays = await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+    const outsiderPays = await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
       description: "Snacks",
       amount: 300,
       paidById: outsider.id,
       split: { type: "EQUAL" },
     });
-    const outsiderOwes = await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+    const outsiderOwes = await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
       description: "Snacks",
       amount: 300,
       split: { type: "EQUAL", userIds: [ana.id, outsider.id] },
@@ -131,7 +131,7 @@ describe("adding expenses", () => {
   });
 
   it.each([0, -100, 10.5, "100"])("rejects an invalid amount (%s)", async (amount) => {
-    const response = await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+    const response = await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
       description: "Bad",
       amount,
       split: { type: "EQUAL" },
@@ -140,7 +140,7 @@ describe("adding expenses", () => {
   });
 
   it("does not let outsiders add expenses", async () => {
-    const response = await as(ctx.app, outsider).post(`/groups/${groupId}/expenses`, {
+    const response = await as(ctx.app, outsider).post(`/api/groups/${groupId}/expenses`, {
       description: "Sneaky",
       amount: 100,
       split: { type: "EQUAL" },
@@ -152,37 +152,37 @@ describe("adding expenses", () => {
 describe("listing and deleting expenses", () => {
   it("lists newest first, for members only", async () => {
     for (const description of ["First", "Second"]) {
-      await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, { description, amount: 300, split: { type: "EQUAL" } });
+      await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, { description, amount: 300, split: { type: "EQUAL" } });
     }
 
-    const response = await as(ctx.app, ben).get(`/groups/${groupId}/expenses`);
+    const response = await as(ctx.app, ben).get(`/api/groups/${groupId}/expenses`);
     expect(response.json().expenses.map((e: { description: string }) => e.description)).toEqual(["Second", "First"]);
-    expect((await as(ctx.app, outsider).get(`/groups/${groupId}/expenses`)).statusCode).toBe(404);
+    expect((await as(ctx.app, outsider).get(`/api/groups/${groupId}/expenses`)).statusCode).toBe(404);
   });
 
   it("deletes an expense and its splits", async () => {
-    const created = await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+    const created = await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
       description: "Oops",
       amount: 300,
       split: { type: "EQUAL" },
     });
     const { id } = created.json().expense;
 
-    const response = await as(ctx.app, ben).delete(`/groups/${groupId}/expenses/${id}`);
+    const response = await as(ctx.app, ben).delete(`/api/groups/${groupId}/expenses/${id}`);
     expect(response.statusCode).toBe(204);
     expect(await ctx.prisma.expenseSplit.count()).toBe(0);
-    expect((await as(ctx.app, ben).delete(`/groups/${groupId}/expenses/${id}`)).statusCode).toBe(404);
+    expect((await as(ctx.app, ben).delete(`/api/groups/${groupId}/expenses/${id}`)).statusCode).toBe(404);
   });
 
   it("can't delete another group's expense through your own group", async () => {
-    const otherGroupId = (await as(ctx.app, outsider).post("/groups", { name: "Other" })).json().group.id;
-    const theirs = await as(ctx.app, outsider).post(`/groups/${otherGroupId}/expenses`, {
+    const otherGroupId = (await as(ctx.app, outsider).post("/api/groups", { name: "Other" })).json().group.id;
+    const theirs = await as(ctx.app, outsider).post(`/api/groups/${otherGroupId}/expenses`, {
       description: "Theirs",
       amount: 100,
       split: { type: "EQUAL" },
     });
 
-    const response = await as(ctx.app, ana).delete(`/groups/${groupId}/expenses/${theirs.json().expense.id}`);
+    const response = await as(ctx.app, ana).delete(`/api/groups/${groupId}/expenses/${theirs.json().expense.id}`);
     expect(response.statusCode).toBe(404);
     expect(await ctx.prisma.expense.count()).toBe(1);
   });

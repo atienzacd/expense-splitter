@@ -31,14 +31,14 @@ beforeEach(async () => {
   cara = await registerUser(ctx.app, "Cara");
   outsider = await registerUser(ctx.app, "Olive");
 
-  groupId = (await as(ctx.app, ana).post("/groups", { name: "Barkada" })).json().group.id;
+  groupId = (await as(ctx.app, ana).post("/api/groups", { name: "Barkada" })).json().group.id;
   for (const user of [ben, cara]) {
-    await as(ctx.app, ana).post(`/groups/${groupId}/members`, { email: user.email });
+    await as(ctx.app, ana).post(`/api/groups/${groupId}/members`, { email: user.email });
   }
 });
 
 async function addExpense(payer: TestUser, amount: number) {
-  const response = await as(ctx.app, payer).post(`/groups/${groupId}/expenses`, {
+  const response = await as(ctx.app, payer).post(`/api/groups/${groupId}/expenses`, {
     description: "Shared",
     amount,
     split: { type: "EQUAL" },
@@ -47,7 +47,7 @@ async function addExpense(payer: TestUser, amount: number) {
 }
 
 async function balances(user = ana) {
-  const response = await as(ctx.app, user).get(`/groups/${groupId}/balances`);
+  const response = await as(ctx.app, user).get(`/api/groups/${groupId}/balances`);
   expect(response.statusCode).toBe(200);
   const body = response.json();
   return {
@@ -75,7 +75,7 @@ describe("balances", () => {
   });
 
   it("is hidden from non-members", async () => {
-    const response = await as(ctx.app, outsider).get(`/groups/${groupId}/balances`);
+    const response = await as(ctx.app, outsider).get(`/api/groups/${groupId}/balances`);
     expect(response.statusCode).toBe(404);
   });
 });
@@ -89,7 +89,7 @@ describe("settlements", () => {
   it("recording the suggested payments settles everyone", async () => {
     for (const { fromUserId, toUserId, amount } of (await balances()).transfers) {
       const payer = [ben, cara].find((u) => u.id === fromUserId)!;
-      const response = await as(ctx.app, payer).post(`/groups/${groupId}/settlements`, { toUserId, amount });
+      const response = await as(ctx.app, payer).post(`/api/groups/${groupId}/settlements`, { toUserId, amount });
       expect(response.statusCode).toBe(201);
       expect(response.json().settlement).toMatchObject({ fromUserId, toUserId, amount });
     }
@@ -98,23 +98,23 @@ describe("settlements", () => {
   });
 
   it("a partial payment reduces what is owed", async () => {
-    await as(ctx.app, cara).post(`/groups/${groupId}/settlements`, { toUserId: ana.id, amount: 1000 });
+    await as(ctx.app, cara).post(`/api/groups/${groupId}/settlements`, { toUserId: ana.id, amount: 1000 });
 
     const { net } = await balances();
     expect(net).toEqual({ Ana: 800, Ben: -600, Cara: -200 });
   });
 
   it("lists settlements newest first", async () => {
-    await as(ctx.app, cara).post(`/groups/${groupId}/settlements`, { toUserId: ana.id, amount: 100 });
-    await as(ctx.app, ben).post(`/groups/${groupId}/settlements`, { toUserId: ana.id, amount: 200 });
+    await as(ctx.app, cara).post(`/api/groups/${groupId}/settlements`, { toUserId: ana.id, amount: 100 });
+    await as(ctx.app, ben).post(`/api/groups/${groupId}/settlements`, { toUserId: ana.id, amount: 200 });
 
-    const response = await as(ctx.app, ana).get(`/groups/${groupId}/settlements`);
+    const response = await as(ctx.app, ana).get(`/api/groups/${groupId}/settlements`);
     expect(response.json().settlements.map((s: { amount: number }) => s.amount)).toEqual([200, 100]);
   });
 
   it("rejects paying yourself or someone outside the group", async () => {
-    const self = await as(ctx.app, ana).post(`/groups/${groupId}/settlements`, { toUserId: ana.id, amount: 100 });
-    const stranger = await as(ctx.app, ana).post(`/groups/${groupId}/settlements`, {
+    const self = await as(ctx.app, ana).post(`/api/groups/${groupId}/settlements`, { toUserId: ana.id, amount: 100 });
+    const stranger = await as(ctx.app, ana).post(`/api/groups/${groupId}/settlements`, {
       toUserId: outsider.id,
       amount: 100,
     });
@@ -126,7 +126,7 @@ describe("settlements", () => {
   });
 
   it("does not let outsiders record payments", async () => {
-    const response = await as(ctx.app, outsider).post(`/groups/${groupId}/settlements`, {
+    const response = await as(ctx.app, outsider).post(`/api/groups/${groupId}/settlements`, {
       toUserId: ana.id,
       amount: 100,
     });
