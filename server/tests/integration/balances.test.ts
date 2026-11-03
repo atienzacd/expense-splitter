@@ -133,3 +133,26 @@ describe("settlements", () => {
     expect(response.statusCode).toBe(404);
   });
 });
+
+describe("isolation between groups", () => {
+  it("balances only count the group's own expenses", async () => {
+    const otherGroupId = (await as(ctx.app, ana).post("/api/groups", { name: "Other" })).json().group.id;
+    await as(ctx.app, ana).post(`/api/groups/${otherGroupId}/members`, { email: ben.email });
+    await as(ctx.app, ana).post(`/api/groups/${otherGroupId}/expenses`, {
+      description: "Elsewhere",
+      amount: 5000,
+      split: { type: "EQUAL" },
+    });
+
+    expect(await balances()).toEqual({ net: { Ana: 0, Ben: 0, Cara: 0 }, transfers: [] });
+  });
+
+  it("hides settlements and blocks expense deletion for outsiders", async () => {
+    await addExpense(ana, 300);
+    const expenseId = (await as(ctx.app, ana).get(`/api/groups/${groupId}/expenses`)).json().expenses[0].id;
+
+    expect((await as(ctx.app, outsider).get(`/api/groups/${groupId}/settlements`)).statusCode).toBe(404);
+    expect((await as(ctx.app, outsider).delete(`/api/groups/${groupId}/expenses/${expenseId}`)).statusCode).toBe(404);
+    expect(await ctx.prisma.expense.count()).toBe(1);
+  });
+});

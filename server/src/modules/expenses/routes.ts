@@ -63,8 +63,10 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
     await requireMembership(prisma, groupId, request.userId);
 
     const paidById = body.paidById ?? request.userId;
-    const splits = await computeSplits(prisma, groupId, body.amount, body.split);
-    await requireAllMembers(prisma, groupId, [paidById, ...splits.map((s) => s.userId)]);
+    const shares = await computeSplits(prisma, groupId, body.amount, body.split);
+    await requireAllMembers(prisma, groupId, [paidById, ...shares.map((s) => s.userId)]);
+    // Tiny amounts can leave someone owing 0 (₱0.02 three ways); they aren't stored.
+    const splits = shares.filter((share) => share.amountOwed > 0);
 
     // Creating the expense and its splits in one statement keeps them atomic.
     const expense = await prisma.expense.create({
@@ -77,6 +79,12 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
         splits: { create: splits },
       },
       select: expenseSelect,
+    });
+    logSecurityEvent(request, "expense.created", {
+      groupId,
+      expenseId: expense.id,
+      amount: expense.amount,
+      byUserId: request.userId,
     });
     return reply.status(201).send({ expense });
   });

@@ -1,5 +1,6 @@
+import { SignJWT } from "jose";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { closeTestContext, createTestContext, resetDatabase, type TestContext } from "./helpers.ts";
+import { closeTestContext, createTestContext, resetDatabase, TEST_JWT_SECRET, type TestContext } from "./helpers.ts";
 
 let ctx: TestContext;
 
@@ -113,10 +114,36 @@ describe("GET /auth/me", () => {
     expect((await me("not-a-real-token")).statusCode).toBe(401);
   });
 
-  it("rejects the token of a user who no longer exists", async () => {
+  it("rejects the token of a user who no longer exists, on every protected route", async () => {
     const { token } = (await register()).json();
     await resetDatabase(ctx.prisma);
+
     expect((await me(token)).statusCode).toBe(401);
+    // Previously this reached the database and failed with a 500.
+    const createGroup = await ctx.app.inject({
+      method: "POST",
+      url: "/api/groups",
+      payload: { name: "Ghost group" },
+      headers: { authorization: `Bearer ${token}` },
+    });
+    expect(createGroup.statusCode).toBe(401);
+  });
+
+  it("rejects an expired token on a group route", async () => {
+    const { user } = (await register()).json();
+    const expired = await new SignJWT()
+      .setProtectedHeader({ alg: "HS256" })
+      .setSubject(user.id)
+      .setIssuer("expense-splitter")
+      .setExpirationTime(Math.floor(Date.now() / 1000) - 60)
+      .sign(new TextEncoder().encode(TEST_JWT_SECRET));
+
+    const response = await ctx.app.inject({
+      method: "GET",
+      url: "/api/groups",
+      headers: { authorization: `Bearer ${expired}` },
+    });
+    expect(response.statusCode).toBe(401);
   });
 });
 
@@ -134,6 +161,24 @@ describe("rate limiting", () => {
       expect(blocked.statusCode).toBe(429);
       expect(blocked.json()).toMatchObject({ error: "TooManyRequests" });
       expect(blocked.headers["retry-after"]).toBeDefined();
+    } finally {
+      await closeTestContext(limited);
+    }
+  });
+
+  it("blocks repeated sign-ups from the same address", async () => {
+    const limited = await createTestContext({ authRateLimit: { max: 2, timeWindow: "1 minute" } });
+    try {
+      const statuses = [];
+      for (const name of ["one", "two", "three"]) {
+        const response = await limited.app.inject({
+          method: "POST",
+          url: "/api/auth/register",
+          payload: { name, email: `${name}@example.com`, password: "a-long-test-password" },
+        });
+        statuses.push(response.statusCode);
+      }
+      expect(statuses).toEqual([201, 201, 429]);
     } finally {
       await closeTestContext(limited);
     }

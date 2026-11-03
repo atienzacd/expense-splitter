@@ -1,8 +1,8 @@
 import type { FastifyInstance, preHandlerAsyncHookHandler } from "fastify";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "../../generated/prisma/client.ts";
-import { emailFingerprint, logSecurityEvent } from "../../security.ts";
-import { DUMMY_HASH, hashPassword, verifyPassword } from "./password.ts";
+import { logSecurityEvent } from "../../security.ts";
+import { checkCredentials, hashPassword } from "./password.ts";
 import type { TokenSigner } from "./tokens.ts";
 
 export type AuthRoutesOptions = {
@@ -10,6 +10,8 @@ export type AuthRoutesOptions = {
   tokens: TokenSigner;
   authenticate: preHandlerAsyncHookHandler;
   rateLimit: { max: number; timeWindow: string };
+  /** Keyed fingerprint used instead of the email in security logs. */
+  fingerprintEmail: (email: string) => string;
 };
 
 // Emails are compared case-insensitively by always storing them lowercased.
@@ -57,12 +59,11 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
     const body = loginBody.parse(request.body);
     const user = await prisma.user.findUnique({ where: { email: body.email } });
 
-    // Unknown emails are still checked against a dummy hash so both failures
-    // take the same time and return the same message.
-    const passwordOk = await verifyPassword(body.password, user?.passwordHash ?? DUMMY_HASH);
+    // Both failures return the same message and take the same time.
+    const passwordOk = await checkCredentials(body.password, user?.passwordHash);
     if (!user || !passwordOk) {
       logSecurityEvent(request, "auth.login_failed", {
-        emailFingerprint: emailFingerprint(body.email),
+        emailFingerprint: options.fingerprintEmail(body.email),
         reason: user ? "wrong_password" : "unknown_email",
       });
       return reply.status(401).send({ error: "InvalidCredentials", message: "Email or password is incorrect" });

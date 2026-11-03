@@ -187,3 +187,73 @@ describe("listing and deleting expenses", () => {
     expect(await ctx.prisma.expense.count()).toBe(1);
   });
 });
+
+describe("split validation at the API", () => {
+  const add = (split: object, amount = 1000) =>
+    as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, { description: "Check", amount, split });
+
+  it("rejects outsiders in exact and percentage splits", async () => {
+    const exact = await add({
+      type: "EXACT",
+      shares: [
+        { userId: ana.id, amount: 500 },
+        { userId: outsider.id, amount: 500 },
+      ],
+    });
+    const percentage = await add({
+      type: "PERCENTAGE",
+      shares: [
+        { userId: ana.id, percent: 50 },
+        { userId: outsider.id, percent: 50 },
+      ],
+    });
+
+    for (const response of [exact, percentage]) {
+      expect(response.statusCode).toBe(400);
+      expect(response.json()).toMatchObject({ error: "NotAGroupMember" });
+    }
+  });
+
+  it("rejects percentages that don't total 100", async () => {
+    const response = await add({
+      type: "PERCENTAGE",
+      shares: [
+        { userId: ana.id, percent: 50 },
+        { userId: ben.id, percent: 40 },
+      ],
+    });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: "SplitError" });
+  });
+
+  it("rejects the same person twice", async () => {
+    const response = await add({ type: "EQUAL", userIds: [ana.id, ana.id] });
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: "SplitError" });
+  });
+
+  it("accepts the largest amount the database can store, and nothing above it", async () => {
+    expect((await add({ type: "EQUAL" }, 2_147_483_647)).statusCode).toBe(201);
+    expect((await add({ type: "EQUAL" }, 2_147_483_648)).statusCode).toBe(400);
+  });
+
+  it("doesn't store people who owe nothing on a tiny amount", async () => {
+    // ₱0.02 between three people: two owe 1 centavo, the third owes nothing.
+    const response = await add({ type: "EQUAL" }, 2);
+
+    expect(response.statusCode).toBe(201);
+    const splits = response.json().expense.splits as { userId: string; amountOwed: number }[];
+    expect(splits.map((s) => s.amountOwed)).toEqual([1, 1]);
+  });
+});
+
+describe("database constraints", () => {
+  it("refuse impossible money even if the API is bypassed", async () => {
+    await expect(
+      ctx.prisma.expense.create({ data: { groupId, paidById: ana.id, description: "Bad", amount: 0, splitType: "EQUAL" } }),
+    ).rejects.toThrow();
+    await expect(
+      ctx.prisma.settlement.create({ data: { groupId, fromUserId: ana.id, toUserId: ana.id, amount: 100 } }),
+    ).rejects.toThrow();
+  });
+});

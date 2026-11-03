@@ -1,13 +1,16 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { emailFingerprint } from "../../src/security.ts";
+import { createEmailFingerprinter } from "../../src/security.ts";
 import {
   as,
   closeTestContext,
   createTestContext,
   registerUser,
   resetDatabase,
+  TEST_JWT_SECRET,
   type TestContext,
 } from "./helpers.ts";
+
+const fingerprint = createEmailFingerprinter(TEST_JWT_SECRET);
 
 let ctx: TestContext;
 const logs: Record<string, unknown>[] = [];
@@ -47,8 +50,8 @@ describe("security event log", () => {
     expect(events("auth.registered")).toEqual([expect.objectContaining({ userId: ana.id })]);
     expect(events("auth.login_succeeded")).toEqual([expect.objectContaining({ userId: ana.id })]);
     expect(events("auth.login_failed")).toEqual([
-      expect.objectContaining({ reason: "wrong_password", emailFingerprint: emailFingerprint(ana.email) }),
-      expect.objectContaining({ reason: "unknown_email", emailFingerprint: emailFingerprint("nobody@example.com") }),
+      expect.objectContaining({ reason: "wrong_password", emailFingerprint: fingerprint(ana.email) }),
+      expect.objectContaining({ reason: "unknown_email", emailFingerprint: fingerprint("nobody@example.com") }),
     ]);
 
     const output = JSON.stringify(logs);
@@ -86,6 +89,14 @@ describe("security event log", () => {
     expect(events("group.member_added")).toEqual([
       expect.objectContaining({ groupId, addedUserId: ben.id, byUserId: ana.id }),
     ]);
+    expect(events("expense.created")).toEqual([
+      expect.objectContaining({ groupId, expenseId, amount: 1000, byUserId: ana.id }),
+    ]);
     expect(events("expense.deleted")).toEqual([expect.objectContaining({ groupId, expenseId, byUserId: ben.id })]);
+
+    await as(ctx.app, ben).post(`/api/groups/${groupId}/settlements`, { toUserId: ana.id, amount: 250 });
+    expect(events("settlement.created")).toEqual([
+      expect.objectContaining({ groupId, amount: 250, toUserId: ana.id, byUserId: ben.id }),
+    ]);
   });
 });

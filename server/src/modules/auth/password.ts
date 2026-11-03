@@ -61,3 +61,13 @@ export async function verifyPassword(password: string, stored: string): Promise<
  * use timing to discover which emails have accounts.
  */
 export const DUMMY_HASH = await hashPassword(randomBytes(16).toString("hex"));
+
+/**
+ * Checks a login attempt. Pass `undefined` when no account has that email: the
+ * password is still hashed (against DUMMY_HASH), so the answer takes as long as
+ * a wrong password, and the result is always false.
+ */
+export async function checkCredentials(password: string, storedHash: string | undefined): Promise<boolean> {
+  const matches = await verifyPassword(password, storedHash ?? DUMMY_HASH);
+  return storedHash !== undefined && matches;
+}

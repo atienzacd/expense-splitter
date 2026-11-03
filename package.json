@@ -19,6 +19,7 @@
   },
   "allowScripts": {
     "prisma": false,
-    "@prisma/engines": false
+    "@prisma/engines": false,
+    "fsevents": false
   }
 }

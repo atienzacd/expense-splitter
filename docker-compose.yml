@@ -2,12 +2,14 @@
 services:
   db:
     image: postgres:17
+    # Also used in .github/workflows/ci.yml; Dependabot only updates this file, so keep them in step.
     environment:
       POSTGRES_USER: splitter
       POSTGRES_PASSWORD: splitter
       POSTGRES_DB: splitter
     ports:
-      - "5432:5432"
+      # Only reachable from this computer, not from other devices on your network.
+      - "127.0.0.1:5432:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:

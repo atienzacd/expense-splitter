@@ -9,10 +9,10 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 - **Money is stored as whole centavos**, never floats, so rounding can't lose or create money. Every split adds up to the exact total.
 - **Three ways to split**: equally, by exact amounts, or by percentage (up to 2 decimals). Leftover centavos are distributed with the largest remainder method.
 - **Debt simplification**: if Ana owes Ben ₱500 and Ben owes Cara ₱500, the app just tells Ana to pay Cara. A greedy algorithm settles a group of _n_ people in at most _n − 1_ payments.
-- **Secure authentication**: argon2id password hashing (Node's built-in implementation, OWASP settings), short-lived JWTs, rate-limited login, and identical responses and timing for "wrong password" and "no such account".
+- **Secure authentication**: argon2id password hashing (Node's built-in implementation, OWASP settings), signed JWTs with a pinned algorithm, rate-limited login and sign-up, and login answers "wrong password" and "no such account" identically, in the same time.
 - **ISO 27001-aligned**: the applicable Annex A technological controls (access control, secure authentication, security event logging with secret redaction, input and rate limits, vulnerability management, CodeQL scanning) are implemented and mapped in [SECURITY.md](SECURITY.md), including the known gaps.
 - **Tested at two levels**: fast unit tests on Linux, Windows and macOS, plus integration tests against a real PostgreSQL database in CI.
-- **Dependency security**: CI fails on any high or critical `npm audit` finding, Dependabot opens weekly update PRs, and package install scripts are blocked unless explicitly allowed.
+- **Supply-chain care**: CI fails on any high or critical `npm audit` finding, Dependabot opens weekly update PRs, unreviewed package install scripts are blocked (`strict-allow-scripts`), and GitHub Actions are pinned to commit SHAs.
 
 ## Tech stack
 
@@ -43,7 +43,7 @@ npm run dev:server                       # API on http://127.0.0.1:3000/api
 npm run dev:client                       # app on http://localhost:5173
 ```
 
-The web app forwards `/api` requests to the API, so in development and production alike the browser talks to a single origin. `npm run dev:server` runs the TypeScript source directly with Node's built-in type stripping and restarts on save. Browse the data with `npm run db:studio -w server`.
+In development the web app forwards `/api` requests to the API, so the browser talks to a single origin. (Serving the built app from the API server in production comes with the Docker milestone.) `npm run dev:server` runs the TypeScript source directly with Node's built-in type stripping and restarts on save. Browse the data with `npm run db:studio -w server`.
 
 ```
 expense-splitter/

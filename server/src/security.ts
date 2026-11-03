@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHmac } from "node:crypto";
 import type { FastifyRequest } from "fastify";
 
 /**
@@ -17,7 +17,9 @@ export type SecurityEvent =
   | "access.denied"
   | "rate_limit.exceeded"
   | "group.member_added"
-  | "expense.deleted";
+  | "expense.created"
+  | "expense.deleted"
+  | "settlement.created";
 
 const WARNING_EVENTS = new Set<SecurityEvent>([
   "auth.login_failed",
@@ -27,11 +29,16 @@ const WARNING_EVENTS = new Set<SecurityEvent>([
 ]);
 
 /**
- * The same email always gives the same fingerprint, so repeated attempts
- * against one account can be correlated, but the address can't be read back.
+ * Builds a keyed (HMAC) email fingerprint for logs. The same email always gives
+ * the same fingerprint, so repeated attempts against one account can be
+ * correlated. Because it is keyed with a server secret, someone holding only
+ * the logs can't confirm a guessed address by hashing it themselves, which a
+ * plain hash would allow.
  */
-export function emailFingerprint(email: string): string {
-  return createHash("sha256").update(email).digest("hex").slice(0, 16);
+export function createEmailFingerprinter(serverSecret: string): (email: string) => string {
+  // A separate key derived from the secret, so this use can't interfere with token signing.
+  const key = createHmac("sha256", serverSecret).update("log-email-fingerprint").digest();
+  return (email) => createHmac("sha256", key).update(email).digest("hex").slice(0, 16);
 }
 
 export function logSecurityEvent(
@@ -52,13 +59,13 @@ export function logSecurityEvent(
  * masking, 8.12 Data leakage prevention). Applied even though the default
  * request serializer doesn't log headers or bodies, in case that changes.
  */
+const SECRET_FIELDS = ["password", "passwordHash", "token"];
+
+// pino redaction has no "any depth" wildcard, so each field is listed at the
+// top level and up to three levels deep (e.g. { body: { user: { password } } }).
 export const REDACTED_LOG_PATHS = [
   "req.headers.authorization",
   "req.headers.cookie",
-  "password",
-  "*.password",
-  "passwordHash",
-  "*.passwordHash",
-  "token",
-  "*.token",
+  'res.headers["set-cookie"]',
+  ...SECRET_FIELDS.flatMap((field) => [field, `*.${field}`, `*.*.${field}`, `*.*.*.${field}`]),
 ];
