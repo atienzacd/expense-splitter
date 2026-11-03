@@ -34,13 +34,13 @@ describe("security event log", () => {
     const ana = await registerUser(ctx.app, "Ana");
     await ctx.app.inject({
       method: "POST",
-      url: "/auth/login",
+      url: "/api/auth/login",
       payload: { email: ana.email, password: "a-long-test-password" },
     });
-    await ctx.app.inject({ method: "POST", url: "/auth/login", payload: { email: ana.email, password: "wrong-guess" } });
+    await ctx.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: ana.email, password: "wrong-guess" } });
     await ctx.app.inject({
       method: "POST",
-      url: "/auth/login",
+      url: "/api/auth/login",
       payload: { email: "nobody@example.com", password: "wrong-guess" },
     });
 
@@ -60,28 +60,28 @@ describe("security event log", () => {
   it("records outsiders trying to reach a group", async () => {
     const ana = await registerUser(ctx.app, "Ana");
     const olive = await registerUser(ctx.app, "Olive");
-    const groupId = (await as(ctx.app, ana).post("/groups", { name: "Private" })).json().group.id;
+    const groupId = (await as(ctx.app, ana).post("/api/groups", { name: "Private" })).json().group.id;
 
-    await as(ctx.app, olive).get(`/groups/${groupId}/balances`);
+    await as(ctx.app, olive).get(`/api/groups/${groupId}/balances`);
 
     expect(events("access.denied")).toEqual([
-      expect.objectContaining({ userId: olive.id, route: "/groups/:groupId/balances", level: 40 }),
+      expect.objectContaining({ userId: olive.id, route: "/api/groups/:groupId/balances", level: 40 }),
     ]);
   });
 
   it("records membership changes and deleted expenses", async () => {
     const ana = await registerUser(ctx.app, "Ana");
     const ben = await registerUser(ctx.app, "Ben");
-    const groupId = (await as(ctx.app, ana).post("/groups", { name: "Trip" })).json().group.id;
-    await as(ctx.app, ana).post(`/groups/${groupId}/members`, { email: ben.email });
+    const groupId = (await as(ctx.app, ana).post("/api/groups", { name: "Trip" })).json().group.id;
+    await as(ctx.app, ana).post(`/api/groups/${groupId}/members`, { email: ben.email });
     const expenseId = (
-      await as(ctx.app, ana).post(`/groups/${groupId}/expenses`, {
+      await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
         description: "Dinner",
         amount: 1000,
         split: { type: "EQUAL" },
       })
     ).json().expense.id;
-    await as(ctx.app, ben).delete(`/groups/${groupId}/expenses/${expenseId}`);
+    await as(ctx.app, ben).delete(`/api/groups/${groupId}/expenses/${expenseId}`);
 
     expect(events("group.member_added")).toEqual([
       expect.objectContaining({ groupId, addedUserId: ben.id, byUserId: ana.id }),

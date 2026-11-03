@@ -33,9 +33,5 @@
     "fastify": "^5.12.8",
     "jose": "^6.2.15",
     "zod": "^4.6.7"
-  },
-  "allowScripts": {
-    "prisma": false,
-    "@prisma/engines": false
   }
 }

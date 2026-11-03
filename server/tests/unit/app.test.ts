@@ -26,7 +26,7 @@ const withDatabase = (checkDatabase: () => Promise<void>) => ({
 describe("GET /health", () => {
   it("reports ok when the database is reachable", async () => {
     app = await buildApp(withDatabase(databaseUp));
-    const response = await app.inject({ method: "GET", url: "/health" });
+    const response = await app.inject({ method: "GET", url: "/api/health" });
 
     expect(response.statusCode).toBe(200);
     expect(response.json()).toEqual({ status: "ok", database: "ok" });
@@ -34,7 +34,7 @@ describe("GET /health", () => {
 
   it("returns 503 when the database is unreachable", async () => {
     app = await buildApp(withDatabase(databaseDown));
-    const response = await app.inject({ method: "GET", url: "/health" });
+    const response = await app.inject({ method: "GET", url: "/api/health" });
 
     expect(response.statusCode).toBe(503);
     expect(response.json()).toEqual({ status: "error", database: "unreachable" });
@@ -42,7 +42,7 @@ describe("GET /health", () => {
 
   it("sends security headers", async () => {
     app = await buildApp(withDatabase(databaseUp));
-    const response = await app.inject({ method: "GET", url: "/health" });
+    const response = await app.inject({ method: "GET", url: "/api/health" });
 
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
     expect(response.headers["content-security-policy"]).toBeDefined();

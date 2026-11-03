@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* `dark:` styles apply when <html> has the "dark" class, set by the theme toggle. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer base {
+  body {
+    @apply bg-slate-50 text-slate-900 antialiased dark:bg-slate-950 dark:text-slate-100;
+  }
+}

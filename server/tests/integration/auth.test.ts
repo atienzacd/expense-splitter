@@ -18,17 +18,17 @@ beforeEach(async () => {
 const ana = { name: "Ana Santos", email: "ana@example.com", password: "correct-horse-battery" };
 
 async function register(body: object = ana) {
-  return ctx.app.inject({ method: "POST", url: "/auth/register", payload: body });
+  return ctx.app.inject({ method: "POST", url: "/api/auth/register", payload: body });
 }
 
 async function login(body: object) {
-  return ctx.app.inject({ method: "POST", url: "/auth/login", payload: body });
+  return ctx.app.inject({ method: "POST", url: "/api/auth/login", payload: body });
 }
 
 async function me(token?: string) {
   return ctx.app.inject({
     method: "GET",
-    url: "/auth/me",
+    url: "/api/auth/me",
     headers: token ? { authorization: `Bearer ${token}` } : {},
   });
 }
@@ -125,7 +125,7 @@ describe("rate limiting", () => {
     const limited = await createTestContext({ authRateLimit: { max: 3, timeWindow: "1 minute" } });
     try {
       const attempt = () =>
-        limited.app.inject({ method: "POST", url: "/auth/login", payload: { email: ana.email, password: "guess" } });
+        limited.app.inject({ method: "POST", url: "/api/auth/login", payload: { email: ana.email, password: "guess" } });
 
       for (let i = 0; i < 3; i++) {
         expect((await attempt()).statusCode).toBe(401);
