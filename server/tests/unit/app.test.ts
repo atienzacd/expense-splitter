@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 import { buildApp } from "../../src/app.ts";
 import type { PrismaClient } from "../../src/db.ts";
+import { simplifyDebts } from "../../src/lib/settle.ts";
 import { splitEqually } from "../../src/lib/split.ts";
 
 let app: FastifyInstance;
@@ -55,7 +56,7 @@ describe("error handling", () => {
     const response = await app.inject({ method: "GET", url: "/nope" });
 
     expect(response.statusCode).toBe(404);
-    expect(response.json()).toEqual({ error: "NotFound", message: "Route GET /nope not found" });
+    expect(response.json()).toEqual({ error: "NotFound", message: "Not found" });
   });
 
   it("turns validation errors into a 400 with details", async () => {
@@ -82,6 +83,16 @@ describe("error handling", () => {
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({ error: "SplitError" });
+  });
+
+  it("treats stored data that doesn't add up as a server error, not the client's", async () => {
+    app = await buildApp(withDatabase(databaseUp));
+    app.get("/bad-balances", async () => simplifyDebts(new Map([["a", 100]])));
+
+    const response = await app.inject({ method: "GET", url: "/bad-balances" });
+
+    expect(response.statusCode).toBe(500);
+    expect(response.json()).toEqual({ error: "InternalServerError", message: "Something went wrong" });
   });
 
   it("returns 400 for malformed JSON", async () => {

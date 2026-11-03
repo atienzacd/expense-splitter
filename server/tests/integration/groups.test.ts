@@ -117,3 +117,21 @@ describe("group members", () => {
     expect(response.statusCode).toBe(404);
   });
 });
+
+describe("adding members by email is rate limited", () => {
+  it("blocks repeated lookups from the same address", async () => {
+    const limited = await createTestContext({ authRateLimit: { max: 2, timeWindow: "1 minute" } });
+    try {
+      const owner = await registerUser(limited.app, "Owner");
+      const group = (await as(limited.app, owner).post("/api/groups", { name: "Probe" })).json().group;
+
+      const statuses = [];
+      for (const email of ["a@example.com", "b@example.com", "c@example.com"]) {
+        statuses.push((await as(limited.app, owner).post(`/api/groups/${group.id}/members`, { email })).statusCode);
+      }
+      expect(statuses).toEqual([404, 404, 429]);
+    } finally {
+      await closeTestContext(limited);
+    }
+  });
+});

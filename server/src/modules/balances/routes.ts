@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { PrismaClient } from "../../db.ts";
 import { HttpError } from "../../errors.ts";
+import { logSecurityEvent } from "../../security.ts";
 import { computeBalances, simplifyDebts } from "../../lib/settle.ts";
 import { centavos } from "../expenses/routes.ts";
 import { groupParams, requireAllMembers, requireMembership } from "../groups/membership.ts";
@@ -71,6 +72,13 @@ export async function balanceRoutes(app: FastifyInstance, { prisma }: BalanceRou
     const settlement = await prisma.settlement.create({
       data: { groupId, fromUserId: request.userId, toUserId, amount },
       select: settlementSelect,
+    });
+    logSecurityEvent(request, "settlement.created", {
+      groupId,
+      settlementId: settlement.id,
+      amount,
+      toUserId,
+      byUserId: request.userId,
     });
     return reply.status(201).send({ settlement });
   });

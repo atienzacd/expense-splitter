@@ -4,8 +4,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
 import type { PrismaClient } from "./db.ts";
 import { HttpError } from "./errors.ts";
-import { logSecurityEvent, REDACTED_LOG_PATHS } from "./security.ts";
-import { SettleError } from "./lib/settle.ts";
+import { createEmailFingerprinter, logSecurityEvent, REDACTED_LOG_PATHS } from "./security.ts";
 import { SplitError } from "./lib/split.ts";
 import { createAuthenticate } from "./modules/auth/authenticate.ts";
 import { authRoutes } from "./modules/auth/routes.ts";
@@ -24,8 +23,11 @@ export type AppOptions = {
   globalRateLimit?: RateLimit;
   /** Attempts allowed per IP on login, register and adding members by email. */
   authRateLimit?: RateLimit;
-  /** Trust X-Forwarded-For from a reverse proxy, so rate limits see real client IPs. */
-  trustProxy?: boolean;
+  /**
+   * Addresses of reverse proxies to trust, so rate limits see real client IPs.
+   * Deliberately never `true`, which would trust headers the client wrote.
+   */
+  trustProxy?: false | string;
   logger?: false | { level: string; stream?: { write(line: string): void } };
 };
 
@@ -84,7 +86,9 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       }
       return reply.status(error.statusCode).send({ error: error.code, message: error.message });
     }
-    if (error instanceof SplitError || error instanceof SettleError) {
+    // Bad split input is the client's mistake. (A SettleError means stored data
+    // doesn't add up, so it falls through to the logged 500 below.)
+    if (error instanceof SplitError) {
       return reply.status(400).send({ error: error.name, message: error.message });
     }
     if (error instanceof Error && "statusCode" in error) {
@@ -99,8 +103,10 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     return reply.status(500).send({ error: "InternalServerError", message: "Something went wrong" });
   });
 
-  app.setNotFoundHandler((request, reply) =>
-    reply.status(404).send({ error: "NotFound", message: `Route ${request.method} ${request.url} not found` }),
+  // Rate limited like real routes, so probing unknown URLs isn't free. The URL
+  // isn't echoed back, so nothing the client sent is reflected in the response.
+  app.setNotFoundHandler({ preHandler: app.rateLimit() }, (_request, reply) =>
+    reply.status(404).send({ error: "NotFound", message: "Not found" }),
   );
 
   // Monitoring polls this often, so it is exempt from rate limiting.
@@ -115,11 +121,18 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   const tokens = createTokenSigner(options.jwtSecret, options.jwtExpiresIn ?? "1d");
-  const authenticate = createAuthenticate(tokens);
+  const authenticate = createAuthenticate(tokens, prisma);
   const authRateLimit = options.authRateLimit ?? { max: 10, timeWindow: "1 minute" };
   app.decorateRequest("userId", "");
 
-  await app.register(authRoutes, { prefix: "/api/auth", prisma, tokens, authenticate, rateLimit: authRateLimit });
+  await app.register(authRoutes, {
+    prefix: "/api/auth",
+    prisma,
+    tokens,
+    authenticate,
+    rateLimit: authRateLimit,
+    fingerprintEmail: createEmailFingerprinter(options.jwtSecret),
+  });
 
   // Everything under /api/groups requires a logged-in user.
   await app.register(

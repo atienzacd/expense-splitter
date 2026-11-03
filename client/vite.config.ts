@@ -5,8 +5,9 @@ import { defineConfig } from "vitest/config";
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
-    // In development the API runs separately (npm run dev:server). In production
-    // the server hosts these files, so the app and API share one origin.
+    // In development the API runs separately (npm run dev:server); forwarding
+    // /api keeps the browser on one origin. In production the API server will
+    // host the built files (planned with the Docker image).
     proxy: { "/api": "http://127.0.0.1:3000" },
   },
   test: {
