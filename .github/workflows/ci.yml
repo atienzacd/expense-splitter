@@ -5,10 +5,10 @@ on:
     branches: [main]
   pull_request:
 
-# A newer push to the same branch or PR cancels the older, now-outdated run.
+# A newer push to a PR cancels its older, now-outdated run. Runs on main always finish.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read

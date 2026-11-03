@@ -60,11 +60,22 @@ describe("request limits", () => {
     expect(responses[0]?.json()).toEqual({ error: "NotFound", message: "Not found" });
   });
 
-  it("never rate limits the health check", async () => {
-    await build({ globalRateLimit: { max: 1, timeWindow: "1 minute" } });
-    for (let i = 0; i < 5; i++) {
-      expect((await app.inject({ method: "GET", url: "/api/health" })).statusCode).toBe(200);
-    }
+  it("gives the health check its own higher limit, and queries the database at most once per burst", async () => {
+    let databaseChecks = 0;
+    await build({
+      globalRateLimit: { max: 1, timeWindow: "1 minute" },
+      checkDatabase: async () => {
+        databaseChecks++;
+      },
+    });
+
+    const statuses = [];
+    for (let i = 0; i < 121; i++) statuses.push((await app.inject({ method: "GET", url: "/api/health" })).statusCode);
+
+    // Not held to the global limit of 1, but not unlimited either.
+    expect(statuses.slice(0, 120).every((status) => status === 200)).toBe(true);
+    expect(statuses[120]).toBe(429);
+    expect(databaseChecks).toBe(1);
   });
 });
 

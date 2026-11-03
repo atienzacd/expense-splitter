@@ -93,3 +93,7 @@ Adding an expense:
 - [x] Groups, expenses and balances API
 - [ ] React frontend (in progress: app scaffold done)
 - [ ] Docker image (amd64 + arm64), image scanning, live demo
+
+## License
+
+[MIT](LICENSE)

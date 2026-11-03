@@ -3,13 +3,12 @@ import { z } from "zod";
 import type { PrismaClient } from "../../db.ts";
 import { HttpError } from "../../errors.ts";
 import { logSecurityEvent } from "../../security.ts";
+import { centavos } from "../../lib/schemas.ts";
 import { type Share, splitByPercentage, splitEqually, splitExact } from "../../lib/split.ts";
 import { groupParams, listMemberIds, requireAllMembers, requireMembership } from "../groups/membership.ts";
 
 export type ExpenseRoutesOptions = { prisma: PrismaClient };
 
-// Amounts are whole centavos and must fit the database's 32-bit integer column.
-export const centavos = z.number().int().positive().max(2_147_483_647);
 
 const splitSchema = z.discriminatedUnion("type", [
   // Leave out userIds to split between everyone in the group.

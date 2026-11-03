@@ -4,7 +4,7 @@ import type { PrismaClient } from "../../db.ts";
 import { HttpError } from "../../errors.ts";
 import { logSecurityEvent } from "../../security.ts";
 import { computeBalances, simplifyDebts } from "../../lib/settle.ts";
-import { centavos } from "../expenses/routes.ts";
+import { centavos } from "../../lib/schemas.ts";
 import { groupParams, requireAllMembers, requireMembership } from "../groups/membership.ts";
 
 export type BalanceRoutesOptions = { prisma: PrismaClient };
