@@ -20,7 +20,7 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 
 **Client:** React · TypeScript · Vite · React Router · TanStack Query · Tailwind CSS
 
-**Tooling:** npm workspaces · Vitest · Testing Library · Docker · GitHub Actions · CodeQL
+**Tooling:** npm workspaces · Oxlint · Vitest · Testing Library · Docker · GitHub Actions · CodeQL
 
 ## Getting started
 
@@ -32,6 +32,7 @@ cp server/.env.example server/.env       # local settings; set your own JWT_SECR
 npm ci                                   # installs server and client (npm workspaces)
 npm run db:migrate -w server             # create the tables
 npm run db:generate -w server            # generate the typed database client
+npm run lint                             # Oxlint, including type-aware rules
 npm test                                 # unit tests for server and client
 npm run test:integration                 # API tests against a separate splitter_test database
 ```

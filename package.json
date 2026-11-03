@@ -16,11 +16,16 @@
     "typecheck": "npm run typecheck --workspaces",
     "test": "npm test --workspaces",
     "test:integration": "npm run test:integration -w server",
-    "build": "npm run build --workspaces"
+    "build": "npm run build --workspaces",
+    "lint": "oxlint --type-aware --deny-warnings"
   },
   "allowScripts": {
     "prisma": false,
     "@prisma/engines": false,
     "fsevents": false
+  },
+  "devDependencies": {
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005"
   }
 }

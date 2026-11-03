@@ -62,10 +62,10 @@ export async function groupRoutes(app: FastifyInstance, { prisma, lookupRateLimi
 
   app.post("/:groupId/members", { config: { rateLimit: lookupRateLimit } }, async (request, reply) => {
     const { groupId } = groupParams.parse(request.params);
-    const { email } = addMemberBody.parse(request.body);
+    const { email: memberEmail } = addMemberBody.parse(request.body);
     await requireMembership(prisma, groupId, request.userId);
 
-    const user = await prisma.user.findUnique({ where: { email }, select: publicUserSelect });
+    const user = await prisma.user.findUnique({ where: { email: memberEmail }, select: publicUserSelect });
     if (!user) {
       throw new HttpError(404, "UserNotFound", "No account uses that email. Ask them to sign up first.");
     }

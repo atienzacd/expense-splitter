@@ -41,7 +41,7 @@ export function mockSystemTheme(initial: "light" | "dark") {
 
 /** Replaces `fetch` with one that answers every request with `status` and `body`. */
 export function mockFetch(status: number, body?: unknown) {
-  const fetchMock = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
+  const fetchMock = vi.fn<typeof fetch>(async () =>
     body === undefined ? new Response(null, { status }) : Response.json(body, { status }),
   );
   vi.stubGlobal("fetch", fetchMock);
