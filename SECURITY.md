@@ -2,9 +2,9 @@
 
 ## Reporting a vulnerability
 
-Please **don't open a public issue** for security problems. Report them privately through GitHub: go to the **Security** tab of this repository and choose **Report a vulnerability**.
+Please **don't post details of a security problem publicly**. Instead, open a GitHub issue titled **"Security contact request"** with no details, and the maintainer will reply with a private way to send the report.
 
-Include what you found, how to reproduce it, and the impact you expect. You'll get an acknowledgement within 7 days. Once a fix is released, the report can be published with credit to you if you'd like.
+Then include what you found, how to reproduce it, and the impact you expect. You'll get an acknowledgement within 7 days. Once a fix is released, the report can be published with credit to you if you'd like.
 
 Only the latest version on `main` is supported.
 
@@ -35,7 +35,7 @@ ISO 27001 certifies an **organization's** information security management system
 
 | Control | How it is handled | Where | Status |
 | --- | --- | --- | --- |
-| 8.25 Secure development life cycle · 8.32 Change management | Work happens on feature branches and is merged through pull requests after CI passes. | GitHub | 🟡 branch protection to be enabled |
+| 8.25 Secure development life cycle · 8.32 Change management | Work happens on feature branches and is merged through pull requests. Branch protection on `main` blocks direct pushes and requires every CI check (tests, integration tests, audit, CodeQL) to pass on an up-to-date branch. | GitHub | ✅ |
 | 8.26 Application security requirements | All input is validated with Zod; request bodies are capped at 16 KB; requests time out after 30 s; every route is rate limited per IP, with stricter limits on login, register and adding members by email. | `app.ts`, route modules | ✅ |
 | 8.28 Secure coding | TypeScript strict mode; parameterised queries through Prisma (no SQL built from strings); security headers via Helmet; one error format that never leaks internals. | `tsconfig.json`, `app.ts` | ✅ |
 | 8.29 Security testing in development and acceptance | Tests cover forged, expired and `alg: none` tokens, access by non-members, rate limiting, log redaction and timing-safe login. CodeQL static analysis runs on every PR and weekly. | `tests/`, `.github/workflows/codeql.yml` | ✅ |
@@ -44,7 +44,7 @@ ISO 27001 certifies an **organization's** information security management system
 | 8.9 Configuration management | All settings come from environment variables and are validated at startup (the server refuses to start on bad config). `.env` files are never committed. | `config.ts`, `.gitignore` | ✅ |
 | 8.31 Separation of development, test and production environments | Integration tests use their own `splitter_test` database. Each environment gets its own `.env`. | `tests/integration/` | ✅ |
 | 8.20 Network security | The dev server listens on `127.0.0.1` only. `TRUST_PROXY` is off unless the app runs behind a proxy you control, so clients can't fake their IP to dodge rate limits. | `config.ts` | ✅ |
-| 8.4 Access to source code | Public repository; only the owner can push. | GitHub | 🟡 branch protection to be enabled |
+| 8.4 Access to source code | Public repository; only the owner can write, and `main` can only change through a reviewed pull request, including for the owner. | GitHub | ✅ |
 
 ### Known gaps
 
