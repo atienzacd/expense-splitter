@@ -60,9 +60,12 @@ describe("error handling", () => {
 
   it("turns validation errors into a 400 with details", async () => {
     app = await buildApp(withDatabase(databaseUp));
-    app.post("/echo", async (request) => z.object({ name: z.string() }).parse(request.body));
+    app.post("/validate", async (request) => {
+      z.object({ name: z.string() }).parse(request.body);
+      return { ok: true };
+    });
 
-    const response = await app.inject({ method: "POST", url: "/echo", payload: { name: 42 } });
+    const response = await app.inject({ method: "POST", url: "/validate", payload: { name: 42 } });
 
     expect(response.statusCode).toBe(400);
     expect(response.json()).toMatchObject({
@@ -83,11 +86,12 @@ describe("error handling", () => {
 
   it("returns 400 for malformed JSON", async () => {
     app = await buildApp(withDatabase(databaseUp));
-    app.post("/echo", async (request) => request.body);
+    // Returns a fixed response: test routes never reflect input back (CodeQL js/reflected-xss).
+    app.post("/upload", async () => ({ ok: true }));
 
     const response = await app.inject({
       method: "POST",
-      url: "/echo",
+      url: "/upload",
       headers: { "content-type": "application/json" },
       payload: "{not json",
     });

@@ -29,9 +29,10 @@ const securityEvents = () => logs.filter((line) => line.securityEvent).map((line
 describe("request limits", () => {
   it("rejects bodies over 16 KB", async () => {
     await build();
-    app.post("/echo", async (request) => request.body);
+    // Returns a fixed response: test routes never reflect input back (CodeQL js/reflected-xss).
+    app.post("/upload", async () => ({ ok: true }));
 
-    const response = await app.inject({ method: "POST", url: "/echo", payload: { text: "x".repeat(17_000) } });
+    const response = await app.inject({ method: "POST", url: "/upload", payload: { text: "x".repeat(17_000) } });
 
     expect(response.statusCode).toBe(413);
     expect(response.json()).toMatchObject({ error: "PayloadTooLarge" });
