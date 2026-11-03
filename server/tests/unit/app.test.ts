@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { z } from "zod";
 import type { FastifyInstance } from "fastify";
-import { buildApp } from "../src/app.ts";
-import { splitEqually } from "../src/lib/split.ts";
+import { buildApp } from "../../src/app.ts";
+import type { PrismaClient } from "../../src/db.ts";
+import { splitEqually } from "../../src/lib/split.ts";
 
 let app: FastifyInstance;
 
@@ -15,9 +16,16 @@ const databaseDown = async () => {
   throw new Error("connection refused");
 };
 
+// These tests never reach the database, so a stand-in client is enough.
+const withDatabase = (checkDatabase: () => Promise<void>) => ({
+  prisma: {} as PrismaClient,
+  jwtSecret: "unit-test-secret-that-is-at-least-32-chars",
+  checkDatabase,
+});
+
 describe("GET /health", () => {
   it("reports ok when the database is reachable", async () => {
-    app = await buildApp({ checkDatabase: databaseUp });
+    app = await buildApp(withDatabase(databaseUp));
     const response = await app.inject({ method: "GET", url: "/health" });
 
     expect(response.statusCode).toBe(200);
@@ -25,7 +33,7 @@ describe("GET /health", () => {
   });
 
   it("returns 503 when the database is unreachable", async () => {
-    app = await buildApp({ checkDatabase: databaseDown });
+    app = await buildApp(withDatabase(databaseDown));
     const response = await app.inject({ method: "GET", url: "/health" });
 
     expect(response.statusCode).toBe(503);
@@ -33,7 +41,7 @@ describe("GET /health", () => {
   });
 
   it("sends security headers", async () => {
-    app = await buildApp({ checkDatabase: databaseUp });
+    app = await buildApp(withDatabase(databaseUp));
     const response = await app.inject({ method: "GET", url: "/health" });
 
     expect(response.headers["x-content-type-options"]).toBe("nosniff");
@@ -43,7 +51,7 @@ describe("GET /health", () => {
 
 describe("error handling", () => {
   it("returns a JSON 404 for unknown routes", async () => {
-    app = await buildApp({ checkDatabase: databaseUp });
+    app = await buildApp(withDatabase(databaseUp));
     const response = await app.inject({ method: "GET", url: "/nope" });
 
     expect(response.statusCode).toBe(404);
@@ -51,7 +59,7 @@ describe("error handling", () => {
   });
 
   it("turns validation errors into a 400 with details", async () => {
-    app = await buildApp({ checkDatabase: databaseUp });
+    app = await buildApp(withDatabase(databaseUp));
     app.post("/echo", async (request) => z.object({ name: z.string() }).parse(request.body));
 
     const response = await app.inject({ method: "POST", url: "/echo", payload: { name: 42 } });
@@ -64,7 +72,7 @@ describe("error handling", () => {
   });
 
   it("turns split errors into a 400", async () => {
-    app = await buildApp({ checkDatabase: databaseUp });
+    app = await buildApp(withDatabase(databaseUp));
     app.get("/bad-split", async () => splitEqually(-1, ["a"]));
 
     const response = await app.inject({ method: "GET", url: "/bad-split" });
@@ -74,7 +82,7 @@ describe("error handling", () => {
   });
 
   it("returns 400 for malformed JSON", async () => {
-    app = await buildApp({ checkDatabase: databaseUp });
+    app = await buildApp(withDatabase(databaseUp));
     app.post("/echo", async (request) => request.body);
 
     const response = await app.inject({
@@ -89,7 +97,7 @@ describe("error handling", () => {
   });
 
   it("hides the details of unexpected errors", async () => {
-    app = await buildApp({ checkDatabase: databaseUp });
+    app = await buildApp(withDatabase(databaseUp));
     app.get("/crash", async () => {
       throw new Error("secret internal detail");
     });

@@ -6,10 +6,10 @@ const config = loadConfig();
 const prisma = createPrismaClient(config.DATABASE_URL);
 
 const app = await buildApp({
+  prisma,
+  jwtSecret: config.JWT_SECRET,
+  jwtExpiresIn: config.JWT_EXPIRES_IN,
   logger: { level: config.LOG_LEVEL },
-  checkDatabase: async () => {
-    await prisma.$queryRaw`SELECT 1`;
-  },
 });
 
 // Finish in-flight requests and close the database pool on Ctrl+C or `docker stop`.
