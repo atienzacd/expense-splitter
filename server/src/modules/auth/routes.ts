@@ -1,6 +1,7 @@
 import type { FastifyInstance, preHandlerAsyncHookHandler } from "fastify";
 import { z } from "zod";
 import { Prisma, type PrismaClient } from "../../generated/prisma/client.ts";
+import { emailFingerprint, logSecurityEvent } from "../../security.ts";
 import { DUMMY_HASH, hashPassword, verifyPassword } from "./password.ts";
 import type { TokenSigner } from "./tokens.ts";
 
@@ -42,6 +43,7 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
         data: { name: body.name, email: body.email, passwordHash },
         select: publicUser,
       });
+      logSecurityEvent(request, "auth.registered", { userId: user.id });
       return reply.status(201).send({ user, token: await tokens.sign(user.id) });
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -59,9 +61,14 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
     // take the same time and return the same message.
     const passwordOk = await verifyPassword(body.password, user?.passwordHash ?? DUMMY_HASH);
     if (!user || !passwordOk) {
+      logSecurityEvent(request, "auth.login_failed", {
+        emailFingerprint: emailFingerprint(body.email),
+        reason: user ? "wrong_password" : "unknown_email",
+      });
       return reply.status(401).send({ error: "InvalidCredentials", message: "Email or password is incorrect" });
     }
 
+    logSecurityEvent(request, "auth.login_succeeded", { userId: user.id });
     return { user: { id: user.id, name: user.name, email: user.email }, token: await tokens.sign(user.id) };
   });
 

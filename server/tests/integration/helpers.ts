@@ -15,7 +15,8 @@ export async function createTestContext(overrides: Partial<AppOptions> = {}): Pr
   const app = await buildApp({
     prisma,
     jwtSecret: TEST_JWT_SECRET,
-    // High enough that ordinary tests never hit it; the rate-limit test lowers it.
+    // High enough that ordinary tests never hit them; the rate-limit tests lower them.
+    globalRateLimit: { max: 10_000, timeWindow: "1 minute" },
     authRateLimit: { max: 1000, timeWindow: "1 minute" },
     ...overrides,
   });

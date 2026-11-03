@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { PrismaClient } from "../../db.ts";
 import { HttpError } from "../../errors.ts";
+import { logSecurityEvent } from "../../security.ts";
 import { type Share, splitByPercentage, splitEqually, splitExact } from "../../lib/split.ts";
 import { groupParams, listMemberIds, requireAllMembers, requireMembership } from "../groups/membership.ts";
 
@@ -89,6 +90,7 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
     if (count === 0) {
       throw new HttpError(404, "ExpenseNotFound", "Expense not found");
     }
+    logSecurityEvent(request, "expense.deleted", { groupId, expenseId, byUserId: request.userId });
     return reply.status(204).send();
   });
 }

@@ -2,6 +2,7 @@ import type { FastifyInstance } from "fastify";
 import { z } from "zod";
 import type { PrismaClient } from "../../db.ts";
 import { HttpError } from "../../errors.ts";
+import { logSecurityEvent } from "../../security.ts";
 import { Prisma } from "../../generated/prisma/client.ts";
 import { groupParams, requireMembership } from "./membership.ts";
 
@@ -77,6 +78,7 @@ export async function groupRoutes(app: FastifyInstance, { prisma, lookupRateLimi
       }
       throw error;
     }
+    logSecurityEvent(request, "group.member_added", { groupId, addedUserId: user.id, byUserId: request.userId });
     return reply.status(201).send({ member: user });
   });
 }
