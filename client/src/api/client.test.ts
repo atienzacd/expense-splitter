@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { mockFetch } from "../test/render.tsx";
+import { mockApi, mockFetch, requestsMade } from "../test/render.tsx";
 import { api, ApiError } from "./client.ts";
 
 describe("api", () => {
@@ -47,5 +47,52 @@ describe("api", () => {
       code: "RequestFailed",
       message: "Request failed (502)",
     });
+  });
+});
+
+describe("renewing an expired login", () => {
+  const expired = { status: 401, body: { error: "Unauthorized", message: "Log in to continue" } };
+
+  it("refreshes the session once and retries the request", async () => {
+    let groupCalls = 0;
+    const fetchMock = mockApi({
+      "GET /api/groups": () => (++groupCalls === 1 ? expired : { status: 200, body: { groups: [] } }),
+      "POST /api/auth/refresh": { status: 200, body: { user: {} } },
+    });
+
+    await expect(api("/groups")).resolves.toEqual({ groups: [] });
+    expect(requestsMade(fetchMock)).toEqual(["GET /api/groups", "POST /api/auth/refresh", "GET /api/groups"]);
+  });
+
+  it("gives up with a 401 when the session can't be renewed", async () => {
+    const fetchMock = mockApi({
+      "GET /api/groups": expired,
+      "POST /api/auth/refresh": { status: 401, body: { error: "SessionExpired", message: "Ended" } },
+    });
+
+    await expect(api("/groups")).rejects.toMatchObject({ status: 401 });
+    expect(requestsMade(fetchMock)).toEqual(["GET /api/groups", "POST /api/auth/refresh"]);
+  });
+
+  it("shares one refresh between requests that expire at the same time", async () => {
+    let refreshed = false;
+    const fetchMock = mockApi({
+      "GET /api/groups": () => (refreshed ? { status: 200, body: [] } : expired),
+      "GET /api/auth/me": () => (refreshed ? { status: 200, body: {} } : expired),
+      "POST /api/auth/refresh": () => {
+        refreshed = true;
+        return { status: 200, body: {} };
+      },
+    });
+
+    await Promise.all([api("/groups"), api("/auth/me")]);
+    expect(requestsMade(fetchMock).filter((r) => r === "POST /api/auth/refresh")).toHaveLength(1);
+  });
+
+  it("doesn't refresh when logging in fails, since that 401 means wrong credentials", async () => {
+    const fetchMock = mockApi({ "POST /api/auth/login": expired });
+
+    await expect(api("/auth/login", { method: "POST", body: "{}" })).rejects.toMatchObject({ status: 401 });
+    expect(requestsMade(fetchMock)).toEqual(["POST /api/auth/login"]);
   });
 });
