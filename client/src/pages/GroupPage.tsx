@@ -5,6 +5,8 @@ import { ApiError } from "../api/client.ts";
 import type { GroupDetails } from "../api/groups.ts";
 import { useCurrentUser } from "../auth/useAuth.ts";
 import { Card } from "../components/Card.tsx";
+import { AddExpenseForm } from "../expenses/AddExpenseForm.tsx";
+import { ExpenseList } from "../expenses/ExpenseList.tsx";
 import { Button, FormAlert, FormSuccess, TextField } from "../components/form.tsx";
 import { useCancelInvitation, useGroup, useGroupInvitations, useInvite, useLeaveGroup } from "../groups/queries.ts";
 import { validate } from "../lib/forms.ts";
@@ -16,6 +18,7 @@ const inviteSchema = z.object({
 export function GroupPage() {
   const { groupId = "" } = useParams();
   const group = useGroup(groupId);
+  const { data: me } = useCurrentUser();
 
   if (group.isPending) return <output className="block text-slate-500">Loading group…</output>;
   if (group.isError) {
@@ -37,11 +40,14 @@ export function GroupPage() {
         <BackLink />
         <h1 className="text-2xl font-bold tracking-tight">{group.data.name}</h1>
       </div>
+      <Card title="Add an expense">
+        <AddExpenseForm groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
+      </Card>
+      <Card title="Expenses">
+        <ExpenseList groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
+      </Card>
       <Members group={group.data} />
       <Invite groupId={group.data.id} />
-      <Card title="Expenses and balances">
-        <p className="text-slate-600 dark:text-slate-300">Adding expenses and settling up is coming next.</p>
-      </Card>
       <LeaveGroup groupId={group.data.id} />
     </div>
   );

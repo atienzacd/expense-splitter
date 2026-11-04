@@ -41,6 +41,26 @@ export function TextField({ label, error, hint, className = "", ...input }: Text
   );
 }
 
+type SelectFieldProps = Omit<ComponentProps<"select">, "id"> & { label: string };
+
+export function SelectField({ label, children, className = "", ...select }: SelectFieldProps) {
+  const id = useId();
+  return (
+    <div className="space-y-1">
+      <label htmlFor={id} className="block text-sm font-medium">
+        {label}
+      </label>
+      <select
+        id={id}
+        className={`block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base shadow-sm outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-600/30 dark:border-slate-700 dark:bg-slate-900 ${className}`}
+        {...select}
+      >
+        {children}
+      </select>
+    </div>
+  );
+}
+
 type ButtonProps = ComponentProps<"button"> & {
   loading?: boolean;
   variant?: "primary" | "secondary" | "danger";

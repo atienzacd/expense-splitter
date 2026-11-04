@@ -100,7 +100,7 @@ Adding an expense:
 - [x] Database schema (Prisma) and Fastify server
 - [x] Authentication (register, login, JWT)
 - [x] Groups, expenses and balances API
-- [ ] React frontend (in progress: app shell, theme switch, log in / sign up, groups and invitations done; expenses and balances next)
+- [ ] React frontend (in progress: app shell, theme switch, log in / sign up, groups and invitations, and expenses done; balances and settling up next)
 - [ ] Docker image (amd64 + arm64), image scanning, live demo
 
 ## License
