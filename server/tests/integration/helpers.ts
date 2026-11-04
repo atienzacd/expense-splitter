@@ -65,9 +65,29 @@ export function as(app: FastifyInstance, user: TestUser) {
   };
 }
 
+/** Adds `invitee` to a group the way people do: `inviter` invites them and they accept. */
+export async function addMember(
+  app: FastifyInstance,
+  inviter: TestUser,
+  groupId: string,
+  invitee: TestUser,
+): Promise<void> {
+  const invite = await as(app, inviter).post(`/api/groups/${groupId}/invitations`, { email: invitee.email });
+  if (invite.statusCode !== 202) throw new Error(`invite failed: ${invite.body}`);
+
+  const { invitations } = (await as(app, invitee).get("/api/invitations")).json() as {
+    invitations: { id: string; group: { id: string } }[];
+  };
+  const invitation = invitations.find((i) => i.group.id === groupId);
+  if (!invitation) throw new Error("invitation not found");
+
+  const accept = await as(app, invitee).post(`/api/invitations/${invitation.id}/accept`, {});
+  if (accept.statusCode !== 200) throw new Error(`accept failed: ${accept.body}`);
+}
+
 /** Empties every table, so each test starts from a clean database. */
 export async function resetDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
-    "TRUNCATE TABLE sessions, expense_splits, expenses, settlements, group_members, groups, users CASCADE",
+    "TRUNCATE TABLE invitations, sessions, expense_splits, expenses, settlements, group_members, groups, users CASCADE",
   );
 }

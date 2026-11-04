@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  addMember,
   as,
   closeTestContext,
   createTestContext,
@@ -33,7 +34,7 @@ beforeEach(async () => {
 
   groupId = (await as(ctx.app, ana).post("/api/groups", { name: "Barkada" })).json().group.id;
   for (const user of [ben, cara]) {
-    await as(ctx.app, ana).post(`/api/groups/${groupId}/members`, { email: user.email });
+    await addMember(ctx.app, ana, groupId, user);
   }
 });
 
@@ -137,7 +138,7 @@ describe("settlements", () => {
 describe("isolation between groups", () => {
   it("balances only count the group's own expenses", async () => {
     const otherGroupId = (await as(ctx.app, ana).post("/api/groups", { name: "Other" })).json().group.id;
-    await as(ctx.app, ana).post(`/api/groups/${otherGroupId}/members`, { email: ben.email });
+    await addMember(ctx.app, ana, otherGroupId, ben);
     await as(ctx.app, ana).post(`/api/groups/${otherGroupId}/expenses`, {
       description: "Elsewhere",
       amount: 5000,

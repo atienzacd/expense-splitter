@@ -31,6 +31,7 @@ model User {
   settlementsPaid     Settlement[]   @relation("SettlementFrom")
   settlementsReceived Settlement[]   @relation("SettlementTo")
   sessions            Session[]
+  invitationsSent     Invitation[]   @relation("InvitationsSent")
 
   @@map("users")
 }
@@ -62,8 +63,28 @@ model Group {
   members     GroupMember[]
   expenses    Expense[]
   settlements Settlement[]
+  invitations Invitation[]
 
   @@map("groups")
+}
+
+// A pending invitation to join a group. It's addressed to an email, not an
+// account, so inviting someone reveals nothing about whether they're
+// registered, and friends can be invited before they sign up. Accepting or
+// declining deletes the row; the security log keeps the history.
+model Invitation {
+  id          String   @id @default(uuid(7)) @db.Uuid
+  groupId     String   @map("group_id") @db.Uuid
+  email       String
+  invitedById String   @map("invited_by_id") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  invitedBy User  @relation("InvitationsSent", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, email])
+  @@index([email])
+  @@map("invitations")
 }
 
 model GroupMember {

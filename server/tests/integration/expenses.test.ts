@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
+  addMember,
   as,
   closeTestContext,
   createTestContext,
@@ -34,7 +35,7 @@ beforeEach(async () => {
 
   groupId = (await as(ctx.app, ana).post("/api/groups", { name: "Barkada" })).json().group.id;
   for (const user of [ben, cara]) {
-    await as(ctx.app, ana).post(`/api/groups/${groupId}/members`, { email: user.email });
+    await addMember(ctx.app, ana, groupId, user);
   }
 });
 
