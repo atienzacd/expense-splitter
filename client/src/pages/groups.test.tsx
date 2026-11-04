@@ -20,6 +20,7 @@ const trip = {
 const noInvitations = {
   "GET /api/invitations": { status: 200, body: { invitations: [] } },
   [`GET /api/groups/${groupId}/invitations`]: { status: 200, body: { invitations: [] } },
+  [`GET /api/groups/${groupId}/expenses`]: { status: 200, body: { expenses: [] } },
 };
 
 describe("groups list", () => {
