@@ -4,6 +4,7 @@ import { z } from "zod";
 import { ApiError } from "../api/client.ts";
 import type { GroupDetails } from "../api/groups.ts";
 import { useCurrentUser } from "../auth/useAuth.ts";
+import { Balances, PaymentHistory } from "../balances/Balances.tsx";
 import { Card } from "../components/Card.tsx";
 import { AddExpenseForm } from "../expenses/AddExpenseForm.tsx";
 import { ExpenseList } from "../expenses/ExpenseList.tsx";
@@ -40,12 +41,14 @@ export function GroupPage() {
         <BackLink />
         <h1 className="text-2xl font-bold tracking-tight">{group.data.name}</h1>
       </div>
+      <Balances groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
       <Card title="Add an expense">
         <AddExpenseForm groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
       </Card>
       <Card title="Expenses">
         <ExpenseList groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
       </Card>
+      <PaymentHistory groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
       <Members group={group.data} />
       <Invite groupId={group.data.id} />
       <LeaveGroup groupId={group.data.id} />

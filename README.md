@@ -2,7 +2,7 @@
 
 Split shared expenses with friends, roommates or travel buddies, and see the fewest payments needed to settle up.
 
-> 🚧 Work in progress. The backend API is complete; the React frontend is being built.
+> 🚧 Work in progress. The app works end to end: sign up, create a group, invite friends, add expenses and settle up. End-to-end tests and a Docker image are next.
 
 ## Highlights
 
@@ -100,7 +100,8 @@ Adding an expense:
 - [x] Database schema (Prisma) and Fastify server
 - [x] Authentication (register, login, JWT)
 - [x] Groups, expenses and balances API
-- [ ] React frontend (in progress: app shell, theme switch, log in / sign up, groups and invitations, and expenses done; balances and settling up next)
+- [x] React frontend: log in / sign up, groups and invitations, expenses, balances and settling up
+- [ ] Playwright end-to-end tests in CI
 - [ ] Docker image (amd64 + arm64), image scanning, live demo
 
 ## License

@@ -36,6 +36,8 @@ function api(expenses: unknown[] = [], extra = {}) {
     [`GET /api/groups/${groupId}`]: { status: 200, body: { group } },
     [`GET /api/groups/${groupId}/invitations`]: { status: 200, body: { invitations: [] } },
     [`GET /api/groups/${groupId}/expenses`]: { status: 200, body: { expenses } },
+    [`GET /api/groups/${groupId}/balances`]: { status: 200, body: { balances: [], transfers: [] } },
+    [`GET /api/groups/${groupId}/settlements`]: { status: 200, body: { settlements: [] } },
     ...extra,
   };
 }
