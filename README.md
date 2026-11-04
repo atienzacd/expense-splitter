@@ -18,7 +18,7 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 
 **Server:** Node.js 26 · TypeScript · Fastify · Prisma · PostgreSQL · Zod
 
-**Client:** React · TypeScript · Vite · React Router · TanStack Query · Tailwind CSS
+**Client:** React · TypeScript · Vite · React Router · TanStack Query · Zod · Tailwind CSS
 
 **Tooling:** npm workspaces · Oxlint · Vitest · Testing Library · Docker · GitHub Actions · CodeQL
 
@@ -94,7 +94,7 @@ Adding an expense:
 - [x] Database schema (Prisma) and Fastify server
 - [x] Authentication (register, login, JWT)
 - [x] Groups, expenses and balances API
-- [ ] React frontend (in progress: app scaffold done)
+- [ ] React frontend (in progress: app shell, theme switch, log in / sign up with automatic session renewal done)
 - [ ] Docker image (amd64 + arm64), image scanning, live demo
 
 ## License

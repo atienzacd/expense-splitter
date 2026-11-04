@@ -1,15 +1,40 @@
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import { getHealth } from "../api/health.ts";
+import { useCurrentUser } from "../auth/useAuth.ts";
+
+const primaryLink =
+  "inline-flex items-center rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white shadow-sm hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600";
+const secondaryLink =
+  "inline-flex items-center rounded-lg border border-slate-300 px-4 py-2.5 font-medium hover:bg-slate-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 dark:border-slate-700 dark:hover:bg-slate-800";
 
 export function HomePage() {
+  const { data: user } = useCurrentUser();
+
   return (
     <div className="space-y-8">
-      <section className="space-y-3">
+      <section className="space-y-4">
         <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">Split bills without the awkward math.</h1>
         <p className="max-w-prose text-lg text-slate-600 dark:text-slate-300">
           Track shared expenses with friends, roommates or travel buddies, and see the fewest payments needed to
           settle up.
         </p>
+        <div className="flex flex-wrap gap-3">
+          {user ? (
+            <Link to="/groups" className={primaryLink}>
+              Go to your groups
+            </Link>
+          ) : (
+            <>
+              <Link to="/register" className={primaryLink}>
+                Get started
+              </Link>
+              <Link to="/login" className={secondaryLink}>
+                Log in
+              </Link>
+            </>
+          )}
+        </div>
       </section>
 
       <ServerStatus />

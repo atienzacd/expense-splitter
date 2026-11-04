@@ -1,5 +1,6 @@
 import { Link, Outlet } from "react-router";
 import { ThemeToggle } from "./ThemeToggle.tsx";
+import { UserMenu } from "./UserMenu.tsx";
 
 export function Layout() {
   return (
@@ -11,9 +12,13 @@ export function Layout() {
             className="flex items-center gap-2 rounded font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600"
           >
             <img src="/favicon.svg" alt="" className="size-7" />
-            Expense Splitter
+            {/* Visible from tablet width up; always read out by screen readers. */}
+            <span className="sr-only sm:not-sr-only">Expense Splitter</span>
           </Link>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <UserMenu />
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
