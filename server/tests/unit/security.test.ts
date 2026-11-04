@@ -126,7 +126,7 @@ describe("security logging", () => {
   it("logs rejected tokens with the reason", async () => {
     await build();
     await app.inject({ method: "GET", url: "/api/auth/me" });
-    await app.inject({ method: "GET", url: "/api/auth/me", headers: { authorization: "Bearer forged.token.here" } });
+    await app.inject({ method: "GET", url: "/api/auth/me", cookies: { access_token: "forged.token.here" } });
 
     const rejected = logs.filter((line) => line.securityEvent === "auth.token_rejected");
     expect(rejected.map((line) => line.reason)).toEqual(["missing", "invalid_or_expired"]);

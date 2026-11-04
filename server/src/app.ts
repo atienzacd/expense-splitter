@@ -1,7 +1,10 @@
+import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
+import { durationSeconds } from "./config.ts";
+import { createCrossSiteGuard } from "./csrf.ts";
 import type { PrismaClient } from "./db.ts";
 import { HttpError } from "./errors.ts";
 import { createEmailFingerprinter, logSecurityEvent, REDACTED_LOG_PATHS } from "./security.ts";
@@ -16,7 +19,14 @@ import { groupRoutes } from "./modules/groups/routes.ts";
 export type AppOptions = {
   prisma: PrismaClient;
   jwtSecret: string;
-  jwtExpiresIn?: string;
+  /** Access token lifetime, e.g. "15m". */
+  accessTokenTtl?: string;
+  /** Refresh token (login session) lifetime, e.g. "14d". */
+  refreshTokenTtl?: string;
+  /** Web origins allowed to make changes; other sites are refused. */
+  allowedOrigins?: readonly string[];
+  /** Send login cookies over HTTPS only. */
+  cookieSecure?: boolean;
   /** Resolves if the database is reachable, rejects otherwise. Defaults to a `SELECT 1`. */
   checkDatabase?: () => Promise<void>;
   /** Requests allowed per IP across the whole API (health checks excluded). */
@@ -86,6 +96,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   });
 
   await app.register(helmet);
+  await app.register(cookie);
+  app.addHook("onRequest", createCrossSiteGuard(options.allowedOrigins ?? []));
   // A generous limit on every route; login and similar routes set stricter ones.
   const globalRateLimit = options.globalRateLimit ?? { max: 300, timeWindow: "1 minute" };
   await app.register(rateLimit, {
@@ -141,7 +153,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     }
   });
 
-  const tokens = createTokenSigner(options.jwtSecret, options.jwtExpiresIn ?? "1d");
+  const accessTokenTtl = options.accessTokenTtl ?? "15m";
+  const tokens = createTokenSigner(options.jwtSecret, accessTokenTtl);
   const authenticate = createAuthenticate(tokens, prisma);
   const authRateLimit = options.authRateLimit ?? { max: 10, timeWindow: "1 minute" };
   app.decorateRequest("userId", "");
@@ -152,6 +165,11 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     tokens,
     authenticate,
     rateLimit: authRateLimit,
+    cookies: {
+      secure: options.cookieSecure ?? true,
+      accessTtlSeconds: durationSeconds(accessTokenTtl),
+      refreshTtlSeconds: durationSeconds(options.refreshTokenTtl ?? "14d"),
+    },
     fingerprintEmail: createEmailFingerprinter(options.jwtSecret),
   });
 

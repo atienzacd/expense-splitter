@@ -14,6 +14,9 @@ export type SecurityEvent =
   | "auth.login_succeeded"
   | "auth.login_failed"
   | "auth.token_rejected"
+  | "auth.refresh_token_reused"
+  | "auth.logged_out"
+  | "request.cross_site_blocked"
   | "access.denied"
   | "rate_limit.exceeded"
   | "group.member_added"
@@ -24,6 +27,8 @@ export type SecurityEvent =
 const WARNING_EVENTS = new Set<SecurityEvent>([
   "auth.login_failed",
   "auth.token_rejected",
+  "auth.refresh_token_reused",
+  "request.cross_site_blocked",
   "access.denied",
   "rate_limit.exceeded",
 ]);

@@ -1,6 +1,7 @@
 import type { FastifyReply, FastifyRequest } from "fastify";
 import type { PrismaClient } from "../../db.ts";
 import { logSecurityEvent } from "../../security.ts";
+import { ACCESS_COOKIE } from "./cookies.ts";
 import type { TokenSigner } from "./tokens.ts";
 
 declare module "fastify" {
@@ -13,13 +14,12 @@ declare module "fastify" {
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * Builds a preHandler that only lets requests through with a valid
- * `Authorization: Bearer <token>` header for a user who still exists.
+ * Builds a preHandler that only lets requests through with a valid access
+ * token cookie for a user who still exists.
  */
 export function createAuthenticate(tokens: TokenSigner, prisma: PrismaClient) {
   return async function authenticate(request: FastifyRequest, reply: FastifyReply): Promise<void> {
-    const header = request.headers.authorization;
-    const token = header?.startsWith("Bearer ") ? header.slice("Bearer ".length) : undefined;
+    const token = request.cookies[ACCESS_COOKIE];
     const userId = token ? await tokens.verify(token) : null;
 
     let reason: string | undefined;
