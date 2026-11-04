@@ -14,7 +14,10 @@ describe("loadConfig", () => {
       PORT: 3000,
       TRUST_PROXY: false,
       LOG_LEVEL: "info",
-      JWT_EXPIRES_IN: "1d",
+      ACCESS_TOKEN_TTL: "15m",
+      REFRESH_TOKEN_TTL: "14d",
+      ALLOWED_ORIGINS: ["http://localhost:5173", "http://127.0.0.1:5173"],
+      COOKIE_SECURE: true,
     });
   });
 
@@ -41,23 +44,42 @@ describe("loadConfig", () => {
   });
 
   it("rejects an invalid token lifetime with a single clear message", () => {
-    expect(() => loadConfig({ ...required, JWT_EXPIRES_IN: "0m" })).toThrow(/JWT_EXPIRES_IN/);
+    expect(() => loadConfig({ ...required, ACCESS_TOKEN_TTL: "0m" })).toThrow(/ACCESS_TOKEN_TTL/);
 
     const error = (() => {
       try {
-        loadConfig({ ...required, JWT_EXPIRES_IN: "forever" });
+        loadConfig({ ...required, ACCESS_TOKEN_TTL: "forever" });
       } catch (e) {
         return (e as Error).message;
       }
     })();
     expect(error).toMatch(/Use a duration like/);
-    expect(error).not.toMatch(/at most 7 days/);
+    expect(error).not.toMatch(/at most/);
   });
 
-  it("caps the token lifetime at 7 days", () => {
-    expect(loadConfig({ ...required, JWT_EXPIRES_IN: "7d" }).JWT_EXPIRES_IN).toBe("7d");
-    expect(() => loadConfig({ ...required, JWT_EXPIRES_IN: "8d" })).toThrow(/at most 7 days/);
-    expect(() => loadConfig({ ...required, JWT_EXPIRES_IN: "9999d" })).toThrow(/at most 7 days/);
+  it("keeps access tokens short-lived: at most 1 hour", () => {
+    expect(loadConfig({ ...required, ACCESS_TOKEN_TTL: "1h" }).ACCESS_TOKEN_TTL).toBe("1h");
+    expect(() => loadConfig({ ...required, ACCESS_TOKEN_TTL: "61m" })).toThrow(/at most 1 hour/);
+    expect(() => loadConfig({ ...required, ACCESS_TOKEN_TTL: "1d" })).toThrow(/at most 1 hour/);
+  });
+
+  it("caps login sessions at 90 days", () => {
+    expect(loadConfig({ ...required, REFRESH_TOKEN_TTL: "90d" }).REFRESH_TOKEN_TTL).toBe("90d");
+    expect(() => loadConfig({ ...required, REFRESH_TOKEN_TTL: "91d" })).toThrow(/at most 90 days/);
+  });
+
+  it("reads allowed origins and refuses anything that isn't an origin", () => {
+    expect(loadConfig({ ...required, ALLOWED_ORIGINS: "https://a.example, https://b.example:8443" }).ALLOWED_ORIGINS).toEqual([
+      "https://a.example",
+      "https://b.example:8443",
+    ]);
+    for (const bad of ["https://a.example/path", "a.example", "*", "ftp://a.example", ""]) {
+      expect(() => loadConfig({ ...required, ALLOWED_ORIGINS: bad })).toThrow(/Not a valid origin/);
+    }
+  });
+
+  it("lets secure cookies be turned off for local development only by choice", () => {
+    expect(loadConfig({ ...required, COOKIE_SECURE: "false" }).COOKIE_SECURE).toBe(false);
   });
 });
 

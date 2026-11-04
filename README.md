@@ -9,7 +9,7 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 - **Money is stored as whole centavos**, never floats, so rounding can't lose or create money. Every split adds up to the exact total.
 - **Three ways to split**: equally, by exact amounts, or by percentage (up to 2 decimals). Leftover centavos are distributed with the largest remainder method.
 - **Debt simplification**: if Ana owes Ben ₱500 and Ben owes Cara ₱500, the app just tells Ana to pay Cara. A greedy algorithm settles a group of _n_ people in at most _n − 1_ payments.
-- **Secure authentication**: argon2id password hashing (Node's built-in implementation, OWASP settings), signed JWTs with a pinned algorithm, rate-limited login and sign-up, and login answers "wrong password" and "no such account" identically, in the same time.
+- **Secure authentication**: argon2id password hashing (Node's built-in implementation, OWASP settings); 15-minute access tokens and rotating 14-day refresh tokens in httpOnly, SameSite=Strict cookies that page scripts can't read; real server-side logout; reuse of a stolen refresh token ends every session; cross-site request blocking; rate-limited login and sign-up; and login answers "wrong password" and "no such account" identically, in the same time.
 - **ISO 27001-aligned**: the applicable Annex A technological controls (access control, secure authentication, security event logging with secret redaction, input and rate limits, vulnerability management, CodeQL scanning) are implemented and mapped in [SECURITY.md](SECURITY.md), including the known gaps.
 - **Tested at two levels**: fast unit tests on Linux, Windows and macOS, plus integration tests against a real PostgreSQL database in CI.
 - **Supply-chain care**: CI fails on any high or critical `npm audit` finding, Dependabot opens weekly update PRs, unreviewed package install scripts are blocked (`strict-allow-scripts`), and GitHub Actions are pinned to commit SHAs.
@@ -57,8 +57,10 @@ expense-splitter/
 | Method | Path                                  | Auth | Description                                       |
 | ------ | ------------------------------------- | ---- | ------------------------------------------------- |
 | GET    | `/api/health`                             | –    | Server and database status                        |
-| POST   | `/api/auth/register`                      | –    | Create an account, returns a token                |
-| POST   | `/api/auth/login`                         | –    | Log in, returns a token                           |
+| POST   | `/api/auth/register`                      | –    | Create an account and log in                      |
+| POST   | `/api/auth/login`                         | –    | Log in                                            |
+| POST   | `/api/auth/refresh`                       | 🍪   | Renew the login (new tokens)                      |
+| POST   | `/api/auth/logout`                        | 🍪   | End this device's session                          |
 | GET    | `/api/auth/me`                            | ✔    | The logged-in user                                |
 | GET    | `/api/groups`                             | ✔    | Groups you belong to                              |
 | POST   | `/api/groups`                             | ✔    | Create a group (you become its first member)      |
@@ -71,7 +73,7 @@ expense-splitter/
 | GET    | `/api/groups/:groupId/settlements`        | ✔    | Recorded payments, newest first                   |
 | POST   | `/api/groups/:groupId/settlements`        | ✔    | Record a payment you made to a member             |
 
-Send the token as `Authorization: Bearer <token>`. All amounts are **whole centavos** (₱150.75 → `15075`). Errors always look like `{ "error": "EmailTaken", "message": "..." }`. Only members can see or change a group; to anyone else it returns the same 404 as a group that doesn't exist.
+Logging in sets two httpOnly cookies: a 15-minute access token sent with every API request, and a refresh token (🍪) that `/api/auth/refresh` exchanges for new ones. Tokens never appear in response bodies. Requests that change data from other websites are refused. All amounts are **whole centavos** (₱150.75 → `15075`). Errors always look like `{ "error": "EmailTaken", "message": "..." }`. Only members can see or change a group; to anyone else it returns the same 404 as a group that doesn't exist.
 
 Adding an expense:
 

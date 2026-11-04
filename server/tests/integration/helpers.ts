@@ -28,9 +28,16 @@ export async function closeTestContext({ app, prisma }: TestContext): Promise<vo
   await prisma.$disconnect();
 }
 
-export type TestUser = { id: string; name: string; email: string; token: string };
+export type TestUser = { id: string; name: string; email: string; token: string; refreshToken: string };
 
-/** Registers a user through the API and returns their id and token. */
+type InjectResponse = Awaited<ReturnType<FastifyInstance["inject"]>>;
+
+/** Reads a cookie the server set on a response. */
+export function cookieFrom(response: InjectResponse, name: string): string | undefined {
+  return response.cookies.find((cookie) => cookie.name === name)?.value;
+}
+
+/** Registers a user through the API and returns their id and login cookies. */
 export async function registerUser(app: FastifyInstance, name: string): Promise<TestUser> {
   const email = `${name.toLowerCase()}@example.com`;
   const response = await app.inject({
@@ -39,14 +46,18 @@ export async function registerUser(app: FastifyInstance, name: string): Promise<
     payload: { name, email, password: "a-long-test-password" },
   });
   if (response.statusCode !== 201) throw new Error(`register ${name} failed: ${response.body}`);
-  const { user, token } = response.json();
-  return { ...user, token };
+  const { user } = response.json();
+  return {
+    ...user,
+    token: cookieFrom(response, "access_token")!,
+    refreshToken: cookieFrom(response, "refresh_token")!,
+  };
 }
 
-/** Sends an authenticated request as `user`. */
+/** Sends an authenticated request as `user`, with their access-token cookie. */
 export function as(app: FastifyInstance, user: TestUser) {
   const send = (method: "GET" | "POST" | "DELETE", url: string, payload?: object) =>
-    app.inject({ method, url, payload, headers: { authorization: `Bearer ${user.token}` } });
+    app.inject({ method, url, payload, cookies: { access_token: user.token } });
   return {
     get: (url: string) => send("GET", url),
     post: (url: string, payload: object) => send("POST", url, payload),
@@ -57,6 +68,6 @@ export function as(app: FastifyInstance, user: TestUser) {
 /** Empties every table, so each test starts from a clean database. */
 export async function resetDatabase(prisma: PrismaClient): Promise<void> {
   await prisma.$executeRawUnsafe(
-    "TRUNCATE TABLE expense_splits, expenses, settlements, group_members, groups, users CASCADE",
+    "TRUNCATE TABLE sessions, expense_splits, expenses, settlements, group_members, groups, users CASCADE",
   );
 }

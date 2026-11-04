@@ -8,7 +8,10 @@ const prisma = createPrismaClient(config.DATABASE_URL);
 const app = await buildApp({
   prisma,
   jwtSecret: config.JWT_SECRET,
-  jwtExpiresIn: config.JWT_EXPIRES_IN,
+  accessTokenTtl: config.ACCESS_TOKEN_TTL,
+  refreshTokenTtl: config.REFRESH_TOKEN_TTL,
+  allowedOrigins: config.ALLOWED_ORIGINS,
+  cookieSecure: config.COOKIE_SECURE,
   trustProxy: config.TRUST_PROXY,
   logger: { level: config.LOG_LEVEL },
 });

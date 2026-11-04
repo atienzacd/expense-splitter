@@ -55,7 +55,7 @@ describe("security event log", () => {
     ]);
 
     const output = JSON.stringify(logs);
-    for (const secret of ["a-long-test-password", "wrong-guess", ana.token, ana.email, "nobody@example.com"]) {
+    for (const secret of ["a-long-test-password", "wrong-guess", ana.token, ana.refreshToken, ana.email, "nobody@example.com"]) {
       expect(output).not.toContain(secret);
     }
   });

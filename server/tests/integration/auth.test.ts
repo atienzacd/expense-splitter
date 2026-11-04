@@ -1,6 +1,13 @@
 import { SignJWT } from "jose";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { closeTestContext, createTestContext, resetDatabase, TEST_JWT_SECRET, type TestContext } from "./helpers.ts";
+import {
+  closeTestContext,
+  cookieFrom,
+  createTestContext,
+  resetDatabase,
+  TEST_JWT_SECRET,
+  type TestContext,
+} from "./helpers.ts";
 
 let ctx: TestContext;
 
@@ -30,20 +37,22 @@ async function me(token?: string) {
   return ctx.app.inject({
     method: "GET",
     url: "/api/auth/me",
-    headers: token ? { authorization: `Bearer ${token}` } : {},
+    cookies: token ? { access_token: token } : {},
   });
 }
 
 describe("POST /auth/register", () => {
-  it("creates the user and returns a working token", async () => {
+  it("creates the user and logs them in with cookies, not a token in the body", async () => {
     const response = await register();
 
     expect(response.statusCode).toBe(201);
     const body = response.json();
     expect(body.user).toEqual({ id: expect.any(String), name: "Ana Santos", email: "ana@example.com" });
-    expect(body.token).toEqual(expect.any(String));
+    expect(body.token).toBeUndefined();
+    const token = cookieFrom(response, "access_token");
+    expect(token).toEqual(expect.any(String));
 
-    const profile = await me(body.token);
+    const profile = await me(token);
     expect(profile.json()).toEqual({ user: body.user });
   });
 
@@ -90,7 +99,8 @@ describe("POST /auth/login", () => {
     expect(response.statusCode).toBe(200);
     const { user, token } = response.json();
     expect(user.email).toBe("ana@example.com");
-    expect((await me(token)).statusCode).toBe(200);
+    expect(token).toBeUndefined();
+    expect((await me(cookieFrom(response, "access_token"))).statusCode).toBe(200);
   });
 
   it("gives the same answer for a wrong password and an unknown email", async () => {
@@ -115,7 +125,7 @@ describe("GET /auth/me", () => {
   });
 
   it("rejects the token of a user who no longer exists, on every protected route", async () => {
-    const { token } = (await register()).json();
+    const token = cookieFrom(await register(), "access_token");
     await resetDatabase(ctx.prisma);
 
     expect((await me(token)).statusCode).toBe(401);
@@ -124,7 +134,7 @@ describe("GET /auth/me", () => {
       method: "POST",
       url: "/api/groups",
       payload: { name: "Ghost group" },
-      headers: { authorization: `Bearer ${token}` },
+      cookies: { access_token: token! },
     });
     expect(createGroup.statusCode).toBe(401);
   });
@@ -141,7 +151,7 @@ describe("GET /auth/me", () => {
     const response = await ctx.app.inject({
       method: "GET",
       url: "/api/groups",
-      headers: { authorization: `Bearer ${expired}` },
+      cookies: { access_token: expired },
     });
     expect(response.statusCode).toBe(401);
   });

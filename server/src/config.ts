@@ -3,9 +3,9 @@ import { z } from "zod";
 
 const DURATION = /^[1-9]\d*[smhd]$/;
 const DURATION_SECONDS = { s: 1, m: 60, h: 3600, d: 86_400 } as const;
-const MAX_TOKEN_LIFETIME_SECONDS = 7 * 86_400;
 
-function durationSeconds(value: string): number {
+/** Converts a duration like "15m" or "14d" to seconds. */
+export function durationSeconds(value: string): number {
   const unit = value.at(-1) as keyof typeof DURATION_SECONDS;
   return Number(value.slice(0, -1)) * DURATION_SECONDS[unit];
 }
@@ -65,16 +65,55 @@ const envSchema = z.object({
     .refine((value) => !/replace-me|change-?me/i.test(value), {
       message: "JWT_SECRET is still the example placeholder. Generate a random one (see .env.example).",
     }),
-  // How long a login lasts, e.g. "15m", "12h", "7d". Capped at 7 days.
-  JWT_EXPIRES_IN: z
+  // How long an access token (the cookie sent with every API request) lasts.
+  // Kept short: the browser gets a new one from the refresh token automatically.
+  ACCESS_TOKEN_TTL: duration("ACCESS_TOKEN_TTL", 60 * 60, "1 hour").default("15m"),
+  // How long a login lasts on one device without being used. Each refresh
+  // starts a new period, and logging out ends it immediately.
+  REFRESH_TOKEN_TTL: duration("REFRESH_TOKEN_TTL", 90 * 86_400, "90 days").default("14d"),
+  // Web origins allowed to make changes through the API, e.g.
+  // "https://splitter.example.com". Requests from any other site are refused.
+  ALLOWED_ORIGINS: z
     .string()
-    .regex(DURATION, 'Use a duration like "15m", "12h" or "7d"')
-    // Only checked for well-formed durations, so a typo gets one clear message.
-    .refine((value) => !DURATION.test(value) || durationSeconds(value) <= MAX_TOKEN_LIFETIME_SECONDS, {
-      message: "JWT_EXPIRES_IN can be at most 7 days",
-    })
-    .default("1d"),
+    .default("http://localhost:5173,http://127.0.0.1:5173")
+    .transform((value, ctx) => {
+      const origins = value.split(",").map((entry) => entry.trim()).filter(Boolean);
+      const invalid = origins.filter((origin) => !isOrigin(origin));
+      if (origins.length > 0 && invalid.length === 0) return origins;
+      ctx.addIssue({
+        code: "custom",
+        message: `Not a valid origin: ${invalid.join(", ") || "(empty)"}. Use e.g. "https://splitter.example.com".`,
+      });
+      return z.NEVER;
+    }),
+  // Login cookies are only sent over HTTPS. Browsers treat http://localhost as
+  // secure, so this stays on in development too; turn it off only if your
+  // browser refuses cookies on a plain-HTTP development address.
+  COOKIE_SECURE: z.stringbool().default(true),
 });
+
+/** A duration like "15m", "12h" or "7d", with an upper limit. */
+function duration(name: string, maxSeconds: number, maxLabel: string) {
+  return (
+    z
+      .string()
+      .regex(DURATION, 'Use a duration like "15m", "12h" or "7d"')
+      // Only checked for well-formed durations, so a typo gets one clear message.
+      .refine((value) => !DURATION.test(value) || durationSeconds(value) <= maxSeconds, {
+        message: `${name} can be at most ${maxLabel}`,
+      })
+  );
+}
+
+/** An origin is a scheme and host (and port), with no path, like the browser's Origin header. */
+function isOrigin(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return (url.protocol === "https:" || url.protocol === "http:") && url.origin === value;
+  } catch {
+    return false;
+  }
+}
 
 export type Config = z.infer<typeof envSchema>;
 
