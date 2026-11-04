@@ -19,7 +19,11 @@ export type SecurityEvent =
   | "request.cross_site_blocked"
   | "access.denied"
   | "rate_limit.exceeded"
-  | "group.member_added"
+  | "group.member_invited"
+  | "group.member_joined"
+  | "group.invitation_declined"
+  | "group.invitation_cancelled"
+  | "group.member_left"
   | "expense.created"
   | "expense.deleted"
   | "settlement.created";

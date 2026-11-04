@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createEmailFingerprinter } from "../../src/security.ts";
 import {
+  addMember,
   as,
   closeTestContext,
   createTestContext,
@@ -76,7 +77,7 @@ describe("security event log", () => {
     const ana = await registerUser(ctx.app, "Ana");
     const ben = await registerUser(ctx.app, "Ben");
     const groupId = (await as(ctx.app, ana).post("/api/groups", { name: "Trip" })).json().group.id;
-    await as(ctx.app, ana).post(`/api/groups/${groupId}/members`, { email: ben.email });
+    await addMember(ctx.app, ana, groupId, ben);
     const expenseId = (
       await as(ctx.app, ana).post(`/api/groups/${groupId}/expenses`, {
         description: "Dinner",
@@ -86,9 +87,13 @@ describe("security event log", () => {
     ).json().expense.id;
     await as(ctx.app, ben).delete(`/api/groups/${groupId}/expenses/${expenseId}`);
 
-    expect(events("group.member_added")).toEqual([
-      expect.objectContaining({ groupId, addedUserId: ben.id, byUserId: ana.id }),
+    expect(events("group.member_invited")).toEqual([
+      expect.objectContaining({ groupId, emailFingerprint: fingerprint(ben.email), byUserId: ana.id }),
     ]);
+    expect(events("group.member_joined")).toEqual([
+      expect.objectContaining({ groupId, userId: ben.id, invitedById: ana.id }),
+    ]);
+    expect(JSON.stringify(events("group.member_invited"))).not.toContain(ben.email);
     expect(events("expense.created")).toEqual([
       expect.objectContaining({ groupId, expenseId, amount: 1000, byUserId: ana.id }),
     ]);

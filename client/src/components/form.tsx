@@ -41,18 +41,50 @@ export function TextField({ label, error, hint, className = "", ...input }: Text
   );
 }
 
-type ButtonProps = ComponentProps<"button"> & { loading?: boolean };
+type ButtonProps = ComponentProps<"button"> & {
+  loading?: boolean;
+  variant?: "primary" | "secondary" | "danger";
+  /** Stretch to the full width of the container. */
+  block?: boolean;
+};
 
-export function Button({ loading = false, disabled, children, className = "", ...button }: ButtonProps) {
+const VARIANTS = {
+  primary: "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700",
+  secondary:
+    "border border-slate-300 bg-white hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800",
+  danger:
+    "border border-red-300 bg-white text-red-700 hover:bg-red-50 dark:border-red-900 dark:bg-slate-900 dark:text-red-300 dark:hover:bg-red-950",
+};
+
+export function Button({
+  loading = false,
+  variant = "primary",
+  block = true,
+  disabled,
+  children,
+  className = "",
+  ...button
+}: ButtonProps) {
   return (
     <button
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={`inline-flex w-full items-center justify-center rounded-lg bg-emerald-600 px-4 py-2.5 font-medium text-white shadow-sm transition-colors hover:bg-emerald-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+      className={`inline-flex items-center justify-center rounded-lg px-4 py-2.5 font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-600 disabled:cursor-not-allowed disabled:opacity-60 ${
+        block ? "w-full" : ""
+      } ${VARIANTS[variant]} ${className}`}
       {...button}
     >
       {children}
     </button>
+  );
+}
+
+/** A non-error message, e.g. "Invitation sent", read out when it appears. */
+export function FormSuccess({ children }: { children: ReactNode }) {
+  return (
+    <output className="block rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950 dark:text-emerald-100">
+      {children}
+    </output>
   );
 }
 

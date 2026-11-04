@@ -65,7 +65,13 @@ expense-splitter/
 | GET    | `/api/groups`                             | ✔    | Groups you belong to                              |
 | POST   | `/api/groups`                             | ✔    | Create a group (you become its first member)      |
 | GET    | `/api/groups/:groupId`                    | ✔    | Group details and members                         |
-| POST   | `/api/groups/:groupId/members`            | ✔    | Add someone by email                              |
+| POST   | `/api/groups/:groupId/invitations`        | ✔    | Invite someone by email                           |
+| GET    | `/api/groups/:groupId/invitations`        | ✔    | Invitations waiting to be accepted                |
+| DELETE | `/api/groups/:groupId/invitations/:id`    | ✔    | Cancel an invitation                              |
+| POST   | `/api/groups/:groupId/leave`              | ✔    | Leave (only once your balance is zero)            |
+| GET    | `/api/invitations`                        | ✔    | Invitations sent to you                           |
+| POST   | `/api/invitations/:id/accept`             | ✔    | Join the group                                    |
+| POST   | `/api/invitations/:id/decline`            | ✔    | Decline                                           |
 | GET    | `/api/groups/:groupId/expenses`           | ✔    | Expenses, newest first                            |
 | POST   | `/api/groups/:groupId/expenses`           | ✔    | Add an expense (equal, exact or percentage split) |
 | DELETE | `/api/groups/:groupId/expenses/:expenseId`| ✔    | Delete an expense                                 |
@@ -94,7 +100,7 @@ Adding an expense:
 - [x] Database schema (Prisma) and Fastify server
 - [x] Authentication (register, login, JWT)
 - [x] Groups, expenses and balances API
-- [ ] React frontend (in progress: app shell, theme switch, log in / sign up with automatic session renewal done)
+- [ ] React frontend (in progress: app shell, theme switch, log in / sign up, groups and invitations done; expenses and balances next)
 - [ ] Docker image (amd64 + arm64), image scanning, live demo
 
 ## License

@@ -15,6 +15,7 @@ import { createTokenSigner } from "./modules/auth/tokens.ts";
 import { balanceRoutes } from "./modules/balances/routes.ts";
 import { expenseRoutes } from "./modules/expenses/routes.ts";
 import { groupRoutes } from "./modules/groups/routes.ts";
+import { invitationRoutes } from "./modules/invitations/routes.ts";
 
 export type AppOptions = {
   prisma: PrismaClient;
@@ -157,6 +158,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const tokens = createTokenSigner(options.jwtSecret, accessTokenTtl);
   const authenticate = createAuthenticate(tokens, prisma);
   const authRateLimit = options.authRateLimit ?? { max: 10, timeWindow: "1 minute" };
+  const fingerprintEmail = createEmailFingerprinter(options.jwtSecret);
   app.decorateRequest("userId", "");
 
   await app.register(authRoutes, {
@@ -170,18 +172,25 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       accessTtlSeconds: durationSeconds(accessTokenTtl),
       refreshTtlSeconds: durationSeconds(options.refreshTokenTtl ?? "14d"),
     },
-    fingerprintEmail: createEmailFingerprinter(options.jwtSecret),
+    fingerprintEmail,
   });
 
-  // Everything under /api/groups requires a logged-in user.
+  // Everything under /api/groups and /api/invitations requires a logged-in user.
   await app.register(
     async (groups) => {
       groups.addHook("preHandler", authenticate);
-      await groups.register(groupRoutes, { prisma, lookupRateLimit: authRateLimit });
+      await groups.register(groupRoutes, { prisma, inviteRateLimit: authRateLimit, fingerprintEmail });
       await groups.register(expenseRoutes, { prisma });
       await groups.register(balanceRoutes, { prisma });
     },
     { prefix: "/api/groups" },
+  );
+  await app.register(
+    async (invitations) => {
+      invitations.addHook("preHandler", authenticate);
+      await invitations.register(invitationRoutes, { prisma });
+    },
+    { prefix: "/api/invitations" },
   );
 
   return app;
