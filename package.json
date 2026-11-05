@@ -8,15 +8,17 @@
   },
   "workspaces": [
     "server",
-    "client"
+    "client",
+    "e2e"
   ],
   "scripts": {
     "dev:server": "npm run dev -w server",
     "dev:client": "npm run dev -w client",
     "typecheck": "npm run typecheck --workspaces",
-    "test": "npm test --workspaces",
+    "test": "npm test --workspaces --if-present",
     "test:integration": "npm run test:integration -w server",
-    "build": "npm run build --workspaces",
+    "test:e2e": "npm run e2e -w e2e",
+    "build": "npm run build --workspaces --if-present",
     "lint": "oxlint --type-aware --deny-warnings"
   },
   "allowScripts": {

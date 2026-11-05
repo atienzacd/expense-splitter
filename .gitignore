@@ -8,3 +8,7 @@ coverage/
 .DS_Store
 Thumbs.db
 server/src/generated/
+
+# Playwright output
+e2e/test-results/
+e2e/playwright-report/

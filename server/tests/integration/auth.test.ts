@@ -141,7 +141,9 @@ describe("GET /auth/me", () => {
 
   it("rejects an expired token on a group route", async () => {
     const { user } = (await register()).json();
-    const expired = await new SignJWT()
+    const session = await ctx.prisma.session.findFirstOrThrow({ where: { userId: user.id } });
+    // Everything valid except the expiry, so only that can be the reason it fails.
+    const expired = await new SignJWT({ sid: session.id })
       .setProtectedHeader({ alg: "HS256" })
       .setSubject(user.id)
       .setIssuer("expense-splitter")
