@@ -12,6 +12,7 @@ const app = await buildApp({
   refreshTokenTtl: config.REFRESH_TOKEN_TTL,
   allowedOrigins: config.ALLOWED_ORIGINS,
   cookieSecure: config.COOKIE_SECURE,
+  staticDir: config.STATIC_DIR,
   trustProxy: config.TRUST_PROXY,
   logger: { level: config.LOG_LEVEL },
 });

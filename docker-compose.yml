@@ -1,4 +1,6 @@
-# Local development database. The app service is added in a later milestone.
+# The whole app:    JWT_SECRET=<32+ random characters> docker compose up --build
+#                   then open http://localhost:8080
+# Database only:    docker compose up -d db   (for `npm run dev:server`)
 services:
   db:
     image: postgres:17
@@ -16,6 +18,38 @@ services:
       test: ["CMD-SHELL", "pg_isready -U splitter"]
       interval: 5s
       retries: 10
+
+  # Applies database migrations, then exits. The app waits for it to succeed.
+  migrate:
+    build:
+      context: .
+      target: migrate
+    environment:
+      DATABASE_URL: postgresql://splitter:splitter@db:5432/splitter
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  app:
+    build:
+      context: .
+      target: runtime
+    image: expense-splitter:local
+    environment:
+      DATABASE_URL: postgresql://splitter:splitter@db:5432/splitter
+      # No default on purpose: the server refuses to start without a real secret.
+      JWT_SECRET: ${JWT_SECRET:-}
+      ALLOWED_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    ports:
+      - "127.0.0.1:8080:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   db-data:

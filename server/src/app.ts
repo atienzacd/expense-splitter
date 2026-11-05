@@ -1,5 +1,7 @@
+import { sep } from "node:path";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
+import fastifyStatic from "@fastify/static";
 import rateLimit from "@fastify/rate-limit";
 import Fastify, { type FastifyInstance } from "fastify";
 import { ZodError } from "zod";
@@ -40,6 +42,11 @@ export type AppOptions = {
    */
   trustProxy?: false | string;
   logger?: false | { level: string; stream?: { write(line: string): void } };
+  /**
+   * Folder with the built web app. When set, the server hosts it too, so the
+   * app and the API share one origin (used by the Docker image).
+   */
+  staticDir?: string;
 };
 
 type RateLimit = { max: number; timeWindow: string };
@@ -140,9 +147,28 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
 
   // Rate limited like real routes, so probing unknown URLs isn't free. The URL
   // isn't echoed back, so nothing the client sent is reflected in the response.
-  app.setNotFoundHandler({ preHandler: app.rateLimit() }, (_request, reply) =>
-    reply.status(404).send({ error: "NotFound", message: "Not found" }),
-  );
+  app.setNotFoundHandler({ preHandler: app.rateLimit() }, (request, reply) => {
+    // Page addresses like /groups/123 belong to the web app: hand it index.html
+    // and let its router decide. API paths keep their JSON 404.
+    if (options.staticDir && request.method === "GET" && !request.url.startsWith("/api")) {
+      return reply.header("cache-control", "no-cache").sendFile("index.html");
+    }
+    return reply.status(404).send({ error: "NotFound", message: "Not found" });
+  });
+
+  if (options.staticDir) {
+    await app.register(fastifyStatic, {
+      root: options.staticDir,
+      // Register a route for each file found at startup instead of matching
+      // paths at request time, so no crafted URL can reach outside the folder.
+      wildcard: false,
+      setHeaders: (res, filePath) => {
+        // Built assets have content hashes in their names, so they never change.
+        const hashed = filePath.includes(`${sep}assets${sep}`);
+        res.header("cache-control", hashed ? "public, max-age=31536000, immutable" : "no-cache");
+      },
+    });
+  }
 
   app.get("/api/health", { config: { rateLimit: HEALTH_RATE_LIMIT } }, async (request, reply) => {
     try {

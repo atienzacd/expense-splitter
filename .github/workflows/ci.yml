@@ -123,3 +123,40 @@ jobs:
             e2e/playwright-report/
             e2e/test-results/
           retention-days: 7
+
+  docker:
+    name: Docker image (build, scan, run)
+    runs-on: ubuntu-latest
+    env:
+      # A throwaway secret just for this smoke test.
+      JWT_SECRET: ci-only-secret-that-is-at-least-32-characters-long
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Build the app and migration images
+        run: docker compose build
+      - name: Scan the image (fail on fixable high or critical vulnerabilities)
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: expense-splitter:local
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          format: table
+      - name: Start the whole app (database, migrations, app)
+        run: docker compose up -d --wait --wait-timeout 120
+      - name: Smoke test
+        run: |
+          set -eu
+          base=http://127.0.0.1:8080
+          curl -fsS "$base/api/health" | grep -q '"database":"ok"'
+          curl -fsS "$base/" | grep -q "<title>Expense Splitter</title>"
+          curl -fsS "$base/groups/anything" | grep -q "<title>Expense Splitter</title>"
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$base/api/nope")" = 404
+          curl -fsSI "$base/" | grep -qi "content-security-policy"
+          echo "Smoke test passed"
+      - name: Show logs if something failed
+        if: failure()
+        run: docker compose logs --no-color
+      - name: Stop
+        if: always()
+        run: docker compose down -v
