@@ -30,7 +30,15 @@ function emptyValues(members: Member[], paidById: string, splitType: SplitType =
 
 export function AddExpenseForm({ groupId, members, meId }: { groupId: string; members: Member[]; meId: string }) {
   const add = useAddExpense(groupId);
-  const [values, setValues] = useState(() => emptyValues(members, meId));
+  const [stored, setValues] = useState(() => emptyValues(members, meId));
+  // Members can change while the form is open (someone joins, a guest is added
+  // or removed): newcomers start included in the split, and a payer who has
+  // left falls back to you.
+  const values: ExpenseFormValues = {
+    ...stored,
+    paidById: members.some((m) => m.id === stored.paidById) ? stored.paidById : meId,
+    included: { ...Object.fromEntries(members.map((m) => [m.id, true])), ...stored.included },
+  };
   const [errors, setErrors] = useState<ExpenseFormErrors>({});
   const [serverError, setServerError] = useState<string>();
   const splitErrorId = useId();

@@ -1,7 +1,8 @@
 import { api, post } from "./client.ts";
 
 export type GroupSummary = { id: string; name: string; createdAt: string; memberCount: number };
-export type Member = { id: string; name: string; email: string; joinedAt: string };
+/** A member of a group: someone with an account, or a guest added by name (no email, can't log in). */
+export type Member = { id: string; name: string; email: string | null; isGuest: boolean; joinedAt: string };
 export type GroupDetails = { id: string; name: string; createdAt: string; createdById: string; members: Member[] };
 export type PendingInvitation = { id: string; email: string; createdAt: string; invitedBy: { id: string; name: string } };
 export type MyInvitation = {
@@ -27,6 +28,11 @@ export const cancelInvitation = (groupId: string, invitationId: string) =>
   api<void>(`/groups/${groupId}/invitations/${invitationId}`, { method: "DELETE" });
 
 export const leaveGroup = (groupId: string) => post<void>(`/groups/${groupId}/leave`);
+
+export const addGuest = (groupId: string, name: string) => post<{ member: Member }>(`/groups/${groupId}/guests`, { name });
+
+export const removeGuest = (groupId: string, guestId: string) =>
+  api<void>(`/groups/${groupId}/guests/${guestId}`, { method: "DELETE" });
 
 export const listMyInvitations = async () => (await api<{ invitations: MyInvitation[] }>("/invitations")).invitations;
 

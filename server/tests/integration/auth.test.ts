@@ -47,7 +47,7 @@ describe("POST /auth/register", () => {
 
     expect(response.statusCode).toBe(201);
     const body = response.json();
-    expect(body.user).toEqual({ id: expect.any(String), name: "Ana Santos", email: "ana@example.com" });
+    expect(body.user).toEqual({ id: expect.any(String), name: "Ana Santos", email: "ana@example.com", isGuest: false });
     expect(body.token).toBeUndefined();
     const token = cookieFrom(response, "access_token");
     expect(token).toEqual(expect.any(String));

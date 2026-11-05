@@ -12,6 +12,8 @@ const invitationParams = z.object({ invitationId: z.uuid() });
 export async function invitationRoutes(app: FastifyInstance, { prisma }: InvitationRoutesOptions): Promise<void> {
   async function currentEmail(userId: string): Promise<string> {
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { email: true } });
+    // Only accounts can log in, and every account has an email; guests never get here.
+    if (user.email === null) throw new HttpError(403, "GuestAccount", "Guests don't have invitations");
     return user.email;
   }
 
