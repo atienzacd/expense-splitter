@@ -24,6 +24,8 @@ export type SecurityEvent =
   | "group.invitation_declined"
   | "group.invitation_cancelled"
   | "group.member_left"
+  | "group.guest_added"
+  | "group.guest_removed"
   | "expense.created"
   | "expense.deleted"
   | "settlement.created";

@@ -20,6 +20,8 @@ function useNames(members: Member[], meId: string) {
 export function Balances({ groupId, members, meId }: Props) {
   const balances = useBalances(groupId);
   const nameOf = useNames(members, meId);
+  const guestIds = new Set(members.filter((m) => m.isGuest).map((m) => m.id));
+  const isGuest = (userId: string) => guestIds.has(userId);
 
   return (
     <Card title="Balances">
@@ -32,7 +34,10 @@ export function Balances({ groupId, members, meId }: Props) {
           <ul className="divide-y divide-slate-200 dark:divide-slate-800">
             {balances.data.balances.map((balance) => (
               <li key={balance.userId} className="flex items-baseline justify-between gap-3 py-2 first:pt-0 last:pb-0">
-                <span className="font-medium">{nameOf(balance.userId)}</span>
+                <span className="font-medium">
+                  {nameOf(balance.userId)}
+                  {balance.isGuest && <span className="text-sm font-normal text-slate-500 dark:text-slate-400"> (guest)</span>}
+                </span>
                 <BalanceAmount net={balance.net} />
               </li>
             ))}
@@ -52,6 +57,7 @@ export function Balances({ groupId, members, meId }: Props) {
                     groupId={groupId}
                     transfer={transfer}
                     meId={meId}
+                    isGuest={isGuest}
                     nameOf={nameOf}
                   />
                 ))}
@@ -76,43 +82,57 @@ type TransferRowProps = {
   groupId: string;
   transfer: Transfer;
   meId: string;
+  isGuest: (userId: string) => boolean;
   nameOf: (userId: string, options?: { lower?: boolean }) => string;
 };
 
-function TransferRow({ groupId, transfer, meId, nameOf }: TransferRowProps) {
+/**
+ * You can mark your own payments as paid. Guests can't log in, so any member
+ * with an account can record theirs; nobody records for another account holder.
+ */
+function TransferRow({ groupId, transfer, meId, isGuest, nameOf }: TransferRowProps) {
   const record = useRecordPayment(groupId);
   const [confirming, setConfirming] = useState(false);
   const youPay = transfer.fromUserId === meId;
+  const guestPays = isGuest(transfer.fromUserId);
+  const canRecord = youPay || guestPays;
   const amount = formatPesos(transfer.amount);
   const sentence = `${nameOf(transfer.fromUserId)} ${youPay ? "pay" : "pays"} ${nameOf(transfer.toUserId, { lower: true })} ${amount}`;
+  const question = youPay
+    ? `Record that you paid ${nameOf(transfer.toUserId)} ${amount}?`
+    : `Record that ${nameOf(transfer.fromUserId)} paid ${nameOf(transfer.toUserId, { lower: true })} ${amount}?`;
 
   return (
     <li className="space-y-2 rounded-lg border border-slate-200 p-3 dark:border-slate-800">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="tabular-nums">{sentence}</span>
-        {youPay && !confirming && (
+        {canRecord && !confirming && (
           <Button block={false} className="px-3 py-1.5 text-sm" onClick={() => setConfirming(true)}>
             Mark as paid
           </Button>
         )}
       </div>
-      {transfer.toUserId === meId && (
+      {transfer.toUserId === meId && !guestPays && (
         <p className="text-sm text-slate-500 dark:text-slate-400">
           {nameOf(transfer.fromUserId)} marks it as paid after paying you.
         </p>
       )}
       {confirming && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm">
-            Record that you paid {nameOf(transfer.toUserId)} {amount}? Only do this once the money has been sent.
-          </span>
+          <span className="text-sm">{question} Only do this once the money has been sent.</span>
           <Button
             block={false}
             className="px-3 py-1.5 text-sm"
             loading={record.isPending}
-            onClick={() => record.mutate({ toUserId: transfer.toUserId, amount: transfer.amount })}
+            onClick={() =>
+              record.mutate({
+                ...(youPay ? {} : { fromUserId: transfer.fromUserId }),
+                toUserId: transfer.toUserId,
+                amount: transfer.amount,
+              })
+            }
           >
-            Yes, I've paid
+            {youPay ? "Yes, I've paid" : "Yes, it's paid"}
           </Button>
           <Button block={false} variant="secondary" className="px-3 py-1.5 text-sm" onClick={() => setConfirming(false)}>
             Not yet
@@ -127,13 +147,19 @@ function TransferRow({ groupId, transfer, meId, nameOf }: TransferRowProps) {
 /** For partial payments, or paying someone other than the suggestion. */
 function OtherPayment({ groupId, members, meId }: Props) {
   const record = useRecordPayment(groupId);
-  const others = members.filter((m) => m.id !== meId);
-  const [toUserId, setToUserId] = useState(others[0]?.id ?? "");
+  // You can record your own payments and those of guests, who can't log in.
+  const guests = members.filter((m) => m.isGuest);
+  const [fromUserId, setFromUserId] = useState(meId);
+  const recipients = members.filter((m) => m.id !== fromUserId);
+  const [chosenTo, setToUserId] = useState(recipients[0]?.id ?? "");
+  // If the payer changes to the chosen recipient, fall back to the first one left.
+  const toUserId = recipients.some((m) => m.id === chosenTo) ? chosenTo : (recipients[0]?.id ?? "");
   const [amount, setAmount] = useState("");
   const [error, setError] = useState<string>();
   const [recorded, setRecorded] = useState<string>();
+  const nameOf = useNames(members, meId);
 
-  if (others.length === 0) return null;
+  if (members.filter((m) => m.id !== meId).length === 0) return null;
 
   function onSubmit(event: FormEvent) {
     event.preventDefault();
@@ -142,29 +168,51 @@ function OtherPayment({ groupId, members, meId }: Props) {
     setError(centavos === null ? "Enter an amount like 150 or 150.75" : undefined);
     if (centavos === null) return;
     record.mutate(
-      { toUserId, amount: centavos },
+      { ...(fromUserId === meId ? {} : { fromUserId }), toUserId, amount: centavos },
       {
         onSuccess: () => {
-          setRecorded(`Recorded ${formatPesos(centavos)} to ${others.find((m) => m.id === toUserId)?.name ?? "them"}.`);
+          setRecorded(
+            fromUserId === meId
+              ? `Recorded ${formatPesos(centavos)} to ${nameOf(toUserId)}.`
+              : `Recorded that ${nameOf(fromUserId)} paid ${nameOf(toUserId, { lower: true })} ${formatPesos(centavos)}.`,
+          );
           setAmount("");
         },
       },
     );
   }
 
+  const recipientOptions = recipients.map((member) => (
+    <option key={member.id} value={member.id}>
+      {member.id === meId ? `${member.name} (you)` : member.name}
+    </option>
+  ));
+
   return (
     <details className="rounded-lg border border-slate-200 p-3 dark:border-slate-800">
       <summary className="cursor-pointer font-medium">Record a different payment</summary>
       <form noValidate onSubmit={onSubmit} className="mt-3 space-y-3">
         <p className="text-sm text-slate-600 dark:text-slate-300">For a partial payment, or one the list above doesn't show.</p>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <SelectField label="You paid" value={toUserId} onChange={(event) => setToUserId(event.target.value)}>
-            {others.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.name}
-              </option>
-            ))}
-          </SelectField>
+        <div className={`grid gap-3 ${guests.length > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
+          {guests.length > 0 ? (
+            <>
+              <SelectField label="Who paid" value={fromUserId} onChange={(event) => setFromUserId(event.target.value)}>
+                <option value={meId}>You</option>
+                {guests.map((guest) => (
+                  <option key={guest.id} value={guest.id}>
+                    {guest.name} (guest)
+                  </option>
+                ))}
+              </SelectField>
+              <SelectField label="Paid to" value={toUserId} onChange={(event) => setToUserId(event.target.value)}>
+                {recipientOptions}
+              </SelectField>
+            </>
+          ) : (
+            <SelectField label="You paid" value={toUserId} onChange={(event) => setToUserId(event.target.value)}>
+              {recipientOptions}
+            </SelectField>
+          )}
           <TextField
             label="Amount paid (₱)"
             inputMode="decimal"

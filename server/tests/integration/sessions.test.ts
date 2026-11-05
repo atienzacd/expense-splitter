@@ -76,7 +76,7 @@ describe("POST /api/auth/refresh", () => {
     const response = await refresh(ana.refreshToken);
 
     expect(response.statusCode).toBe(200);
-    expect(response.json()).toEqual({ user: { id: ana.id, name: "Ana", email: ana.email } });
+    expect(response.json()).toEqual({ user: { id: ana.id, name: "Ana", email: ana.email, isGuest: false } });
     const newAccess = cookieFrom(response, "access_token");
     const newRefresh = cookieFrom(response, "refresh_token");
     expect(newRefresh).toBeDefined();

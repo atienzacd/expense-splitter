@@ -70,7 +70,7 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
     const user = await prisma.user.findUnique({ where: { email: body.email } });
 
     // Both failures return the same message and take the same time.
-    const passwordOk = await checkCredentials(body.password, user?.passwordHash);
+    const passwordOk = await checkCredentials(body.password, user?.passwordHash ?? undefined);
     if (!user || !passwordOk) {
       logSecurityEvent(request, "auth.login_failed", {
         emailFingerprint: options.fingerprintEmail(body.email),

@@ -16,6 +16,7 @@ The app works end to end: sign up, create a group, invite friends, add expenses 
 
 - **Money is stored as whole centavos**, never floats, so rounding can't lose or create money. Every split adds up to the exact total.
 - **Three ways to split**: equally, by exact amounts, or by percentage (up to 2 decimals). Leftover centavos are distributed with the largest remainder method.
+- **Friends without accounts**: add people by name only, so one person can keep the books for the whole trip. Guests can pay for things and share costs like anyone else; members record their payments for them. Guests can never log in (enforced by a database constraint).
 - **Debt simplification**: if Ana owes Ben ₱500 and Ben owes Cara ₱500, the app just tells Ana to pay Cara. A greedy algorithm settles a group of _n_ people in at most _n − 1_ payments.
 - **Secure authentication**: argon2id password hashing (Node's built-in implementation, OWASP settings); 15-minute access tokens and rotating 14-day refresh tokens in httpOnly, SameSite=Strict cookies that page scripts can't read; real server-side logout; reuse of a stolen refresh token ends every session; cross-site request blocking; rate-limited login and sign-up; and login answers "wrong password" and "no such account" identically, in the same time.
 - **ISO 27001-aligned**: the applicable Annex A technological controls (access control, secure authentication, security event logging with secret redaction, input and rate limits, vulnerability management, CodeQL scanning) are implemented and mapped in [SECURITY.md](SECURITY.md), including the known gaps.
@@ -93,6 +94,8 @@ expense-splitter/
 | GET    | `/api/groups/:groupId/invitations`        | ✔    | Invitations waiting to be accepted                |
 | DELETE | `/api/groups/:groupId/invitations/:id`    | ✔    | Cancel an invitation                              |
 | POST   | `/api/groups/:groupId/leave`              | ✔    | Leave (only once your balance is zero)            |
+| POST   | `/api/groups/:groupId/guests`             | ✔    | Add someone by name only (no account)             |
+| DELETE | `/api/groups/:groupId/guests/:guestId`    | ✔    | Remove a guest (only once their balance is zero)  |
 | GET    | `/api/invitations`                        | ✔    | Invitations sent to you                           |
 | POST   | `/api/invitations/:id/accept`             | ✔    | Join the group                                    |
 | POST   | `/api/invitations/:id/decline`            | ✔    | Decline                                           |
@@ -101,7 +104,7 @@ expense-splitter/
 | DELETE | `/api/groups/:groupId/expenses/:expenseId`| ✔    | Delete an expense                                 |
 | GET    | `/api/groups/:groupId/balances`           | ✔    | Each member's balance and the fewest payments     |
 | GET    | `/api/groups/:groupId/settlements`        | ✔    | Recorded payments, newest first                   |
-| POST   | `/api/groups/:groupId/settlements`        | ✔    | Record a payment you made to a member             |
+| POST   | `/api/groups/:groupId/settlements`        | ✔    | Record a payment you made, or one a guest made    |
 
 Logging in sets two httpOnly cookies: a 15-minute access token sent with every API request, and a refresh token (🍪) that `/api/auth/refresh` exchanges for new ones. Tokens never appear in response bodies. Requests that change data from other websites are refused. All amounts are **whole centavos** (₱150.75 → `15075`). Errors always look like `{ "error": "EmailTaken", "message": "..." }`. Only members can see or change a group; to anyone else it returns the same 404 as a group that doesn't exist.
 

@@ -9,8 +9,9 @@ import { groupParams, requireAllMembers, requireMembership } from "../groups/mem
 
 export type BalanceRoutesOptions = { prisma: PrismaClient };
 
-// You record payments you made; `from` is always the logged-in user.
-const createSettlementBody = z.object({ toUserId: z.uuid(), amount: centavos });
+// You record payments you made. You can also record a payment made by a guest
+// (who can't log in to do it), but never on behalf of someone with an account.
+const createSettlementBody = z.object({ fromUserId: z.uuid().optional(), toUserId: z.uuid(), amount: centavos });
 
 const settlementSelect = {
   id: true,
@@ -28,7 +29,7 @@ export async function balanceRoutes(app: FastifyInstance, { prisma }: BalanceRou
     const [members, expenses, settlements] = await Promise.all([
       prisma.groupMember.findMany({
         where: { groupId },
-        select: { user: { select: { id: true, name: true } } },
+        select: { user: { select: { id: true, name: true, isGuest: true } } },
         orderBy: { joinedAt: "asc" },
       }),
       prisma.expense.findMany({
@@ -43,7 +44,12 @@ export async function balanceRoutes(app: FastifyInstance, { prisma }: BalanceRou
 
     const net = computeBalances(expenses, settlements);
     // Every member is listed, including those with nothing owed either way.
-    const balances = members.map(({ user }) => ({ userId: user.id, name: user.name, net: net.get(user.id) ?? 0 }));
+    const balances = members.map(({ user }) => ({
+      userId: user.id,
+      name: user.name,
+      isGuest: user.isGuest,
+      net: net.get(user.id) ?? 0,
+    }));
     return { balances, transfers: simplifyDebts(net) };
   });
 
@@ -61,22 +67,31 @@ export async function balanceRoutes(app: FastifyInstance, { prisma }: BalanceRou
 
   app.post("/:groupId/settlements", async (request, reply) => {
     const { groupId } = groupParams.parse(request.params);
-    const { toUserId, amount } = createSettlementBody.parse(request.body);
+    const body = createSettlementBody.parse(request.body);
+    const { toUserId, amount } = body;
+    const fromUserId = body.fromUserId ?? request.userId;
     await requireMembership(prisma, groupId, request.userId);
 
-    if (toUserId === request.userId) {
-      throw new HttpError(400, "InvalidSettlement", "You can't record a payment to yourself");
+    if (toUserId === fromUserId) {
+      throw new HttpError(400, "InvalidSettlement", "A payment needs two different people");
     }
-    await requireAllMembers(prisma, groupId, [toUserId]);
+    await requireAllMembers(prisma, groupId, [fromUserId, toUserId]);
+    if (fromUserId !== request.userId) {
+      const payer = await prisma.user.findUniqueOrThrow({ where: { id: fromUserId }, select: { isGuest: true } });
+      if (!payer.isGuest) {
+        throw new HttpError(403, "NotYourPayment", "Only they can record their own payments.");
+      }
+    }
 
     const settlement = await prisma.settlement.create({
-      data: { groupId, fromUserId: request.userId, toUserId, amount },
+      data: { groupId, fromUserId, toUserId, amount },
       select: settlementSelect,
     });
     logSecurityEvent(request, "settlement.created", {
       groupId,
       settlementId: settlement.id,
       amount,
+      fromUserId,
       toUserId,
       byUserId: request.userId,
     });

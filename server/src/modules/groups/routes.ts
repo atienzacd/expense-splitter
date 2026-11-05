@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { PrismaClient } from "../../db.ts";
 import { HttpError } from "../../errors.ts";
 import { computeBalances } from "../../lib/settle.ts";
-import { email, publicUserSelect } from "../../lib/schemas.ts";
+import { email, personName, publicUserSelect } from "../../lib/schemas.ts";
 import { logSecurityEvent } from "../../security.ts";
 import { groupParams, requireMembership } from "./membership.ts";
 
@@ -18,6 +18,8 @@ export type GroupRoutesOptions = {
 const createGroupBody = z.object({ name: z.string().trim().min(1).max(100) });
 const inviteBody = z.object({ email });
 const invitationParams = groupParams.extend({ invitationId: z.uuid() });
+const guestBody = z.object({ name: personName });
+const guestParams = groupParams.extend({ guestId: z.uuid() });
 
 export async function groupRoutes(app: FastifyInstance, options: GroupRoutesOptions): Promise<void> {
   const { prisma, inviteRateLimit, fingerprintEmail } = options;
@@ -124,14 +126,7 @@ export async function groupRoutes(app: FastifyInstance, options: GroupRoutesOpti
     const { groupId } = groupParams.parse(request.params);
     await requireMembership(prisma, groupId, request.userId);
 
-    const [expenses, settlements] = await Promise.all([
-      prisma.expense.findMany({
-        where: { groupId },
-        select: { paidById: true, amount: true, splits: { select: { userId: true, amountOwed: true } } },
-      }),
-      prisma.settlement.findMany({ where: { groupId }, select: { fromUserId: true, toUserId: true, amount: true } }),
-    ]);
-    const balance = computeBalances(expenses, settlements).get(request.userId) ?? 0;
+    const balance = await balanceOf(prisma, groupId, request.userId);
     if (balance !== 0) {
       throw new HttpError(
         409,
@@ -142,12 +137,74 @@ export async function groupRoutes(app: FastifyInstance, options: GroupRoutesOpti
 
     await prisma.$transaction(async (tx) => {
       await tx.groupMember.delete({ where: { groupId_userId: { groupId, userId: request.userId } } });
-      // The last person out closes the group, so no one-person-less groups linger.
-      if ((await tx.groupMember.count({ where: { groupId } })) === 0) {
+      // When the last person with an account leaves, nobody can open the group
+      // any more, so it's closed, along with any guests who only existed in it.
+      const accountsLeft = await tx.groupMember.count({ where: { groupId, user: { isGuest: false } } });
+      if (accountsLeft === 0) {
+        const guests = await tx.groupMember.findMany({ where: { groupId }, select: { userId: true } });
         await tx.group.delete({ where: { id: groupId } });
+        await tx.user.deleteMany({ where: { id: { in: guests.map((g) => g.userId) }, isGuest: true } });
       }
     });
     logSecurityEvent(request, "group.member_left", { groupId, userId: request.userId });
     return reply.status(204).send();
   });
+
+  // Adds someone by name only: a guest with no account, who can't log in and
+  // exists only in this group. Members record their expenses and payments.
+  app.post("/:groupId/guests", async (request, reply) => {
+    const { groupId } = groupParams.parse(request.params);
+    const { name } = guestBody.parse(request.body);
+    await requireMembership(prisma, groupId, request.userId);
+
+    // Two people with the same name would make balances ambiguous.
+    const sameName = await prisma.groupMember.findFirst({
+      where: { groupId, user: { name: { equals: name, mode: "insensitive" } } },
+      select: { userId: true },
+    });
+    if (sameName) {
+      throw new HttpError(409, "NameTaken", "Someone in this group already has that name. Add a surname or initial.");
+    }
+
+    const guest = await prisma.user.create({
+      data: { name, isGuest: true, memberships: { create: { groupId } } },
+      select: publicUserSelect,
+    });
+    logSecurityEvent(request, "group.guest_added", { groupId, guestId: guest.id, byUserId: request.userId });
+    return reply.status(201).send({ member: guest });
+  });
+
+  // Removes a guest (e.g. added by mistake) once they're settled up. Their name
+  // stays on past expenses and payments, which keep the group's history whole.
+  app.delete("/:groupId/guests/:guestId", async (request, reply) => {
+    const { groupId, guestId } = guestParams.parse(request.params);
+    await requireMembership(prisma, groupId, request.userId);
+
+    const membership = await prisma.groupMember.findFirst({
+      where: { groupId, userId: guestId, user: { isGuest: true } },
+      select: { userId: true },
+    });
+    if (!membership) {
+      throw new HttpError(404, "GuestNotFound", "Guest not found");
+    }
+    if ((await balanceOf(prisma, groupId, guestId)) !== 0) {
+      throw new HttpError(409, "BalanceNotSettled", "This guest still owes or is owed money. Settle up first.");
+    }
+
+    await prisma.groupMember.delete({ where: { groupId_userId: { groupId, userId: guestId } } });
+    logSecurityEvent(request, "group.guest_removed", { groupId, guestId, byUserId: request.userId });
+    return reply.status(204).send();
+  });
+}
+
+/** What the group owes `userId` (positive) or they owe the group (negative), in centavos. */
+async function balanceOf(prisma: PrismaClient, groupId: string, userId: string): Promise<number> {
+  const [expenses, settlements] = await Promise.all([
+    prisma.expense.findMany({
+      where: { groupId },
+      select: { paidById: true, amount: true, splits: { select: { userId: true, amountOwed: true } } },
+    }),
+    prisma.settlement.findMany({ where: { groupId }, select: { fromUserId: true, toUserId: true, amount: true } }),
+  ]);
+  return computeBalances(expenses, settlements).get(userId) ?? 0;
 }

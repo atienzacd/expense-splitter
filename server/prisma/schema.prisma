@@ -17,11 +17,16 @@ enum SplitType {
   PERCENTAGE
 }
 
+// A person. Most have an account (email + password). A guest is someone a
+// member added by name only: they have no email or password, can't log in,
+// and exist only inside the group they were added to. A CHECK constraint in
+// the migrations keeps the two kinds from mixing.
 model User {
   id           String   @id @default(uuid(7)) @db.Uuid
   name         String
-  email        String   @unique
-  passwordHash String   @map("password_hash")
+  email        String?  @unique
+  passwordHash String?  @map("password_hash")
+  isGuest      Boolean  @default(false) @map("is_guest")
   createdAt    DateTime @default(now()) @map("created_at")
 
   groupsCreated       Group[]        @relation("GroupCreatedBy")

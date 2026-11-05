@@ -9,7 +9,15 @@ import { Card } from "../components/Card.tsx";
 import { AddExpenseForm } from "../expenses/AddExpenseForm.tsx";
 import { ExpenseList } from "../expenses/ExpenseList.tsx";
 import { Button, FormAlert, FormSuccess, TextField } from "../components/form.tsx";
-import { useCancelInvitation, useGroup, useGroupInvitations, useInvite, useLeaveGroup } from "../groups/queries.ts";
+import {
+  useAddGuest,
+  useCancelInvitation,
+  useGroup,
+  useGroupInvitations,
+  useInvite,
+  useLeaveGroup,
+  useRemoveGuest,
+} from "../groups/queries.ts";
 import { validate } from "../lib/forms.ts";
 
 const inviteSchema = z.object({
@@ -51,6 +59,7 @@ export function GroupPage() {
       <PaymentHistory groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
       <Members group={group.data} />
       <Invite groupId={group.data.id} />
+      <AddGuest groupId={group.data.id} />
       <LeaveGroup groupId={group.data.id} />
     </div>
   );
@@ -66,20 +75,118 @@ function BackLink() {
 
 function Members({ group }: { group: GroupDetails }) {
   const { data: me } = useCurrentUser();
+  const remove = useRemoveGuest(group.id);
+
+  const removeError =
+    remove.error instanceof ApiError && remove.error.code === "BalanceNotSettled"
+      ? remove.error.message
+      : remove.isError
+        ? "Couldn't remove the guest. Please try again."
+        : undefined;
+
   return (
     <Card title={`Members (${group.members.length})`}>
+      {removeError && (
+        <div className="mb-3">
+          <FormAlert>{removeError}</FormAlert>
+        </div>
+      )}
       <ul className="divide-y divide-slate-200 dark:divide-slate-800">
         {group.members.map((member) => (
-          <li key={member.id} className="flex flex-wrap items-baseline justify-between gap-x-3 py-2 first:pt-0 last:pb-0">
+          <li key={member.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
             <span className="font-medium">
               {member.name}
               {member.id === me?.id && <span className="text-slate-500 dark:text-slate-400"> (you)</span>}
             </span>
-            <span className="text-sm text-slate-500 dark:text-slate-400">{member.email}</span>
+            {member.isGuest ? (
+              <span className="flex items-center gap-2">
+                <GuestBadge />
+                <Button
+                  block={false}
+                  variant="secondary"
+                  className="px-2 py-0.5 text-sm"
+                  disabled={remove.isPending}
+                  aria-label={`Remove ${member.name}`}
+                  onClick={() => remove.mutate(member.id)}
+                >
+                  Remove
+                </Button>
+              </span>
+            ) : (
+              <span className="text-sm text-slate-500 dark:text-slate-400">{member.email}</span>
+            )}
           </li>
         ))}
       </ul>
     </Card>
+  );
+}
+
+const guestSchema = z.object({ name: z.string().trim().min(1, "Enter their name").max(100, "Use at most 100 characters") });
+
+/** Adds someone by name only: they get no account, and members record their expenses and payments. */
+function AddGuest({ groupId }: { groupId: string }) {
+  const add = useAddGuest(groupId);
+  const [name, setName] = useState("");
+  const [error, setError] = useState<string>();
+  const [added, setAdded] = useState<string>();
+
+  function onSubmit(event: FormEvent) {
+    event.preventDefault();
+    setAdded(undefined);
+    const result = validate(guestSchema, { name });
+    setError(result.ok ? undefined : result.errors.name);
+    if (!result.ok) return;
+
+    add.mutate(result.data.name, {
+      onSuccess: ({ member }) => {
+        setAdded(member.name);
+        setName("");
+      },
+      onError: (failure) =>
+        setError(
+          failure instanceof ApiError && failure.code === "NameTaken"
+            ? failure.message
+            : "Couldn't add them. Please try again.",
+        ),
+    });
+  }
+
+  return (
+    <Card title="Add someone without an account">
+      <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
+        For friends who won't sign up. They're added by name only and can't log in; you and the others record their
+        expenses and payments.
+      </p>
+      <form noValidate onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        <div className="flex-1">
+          <TextField
+            label="Their name"
+            placeholder="e.g. Lola Nena"
+            autoComplete="off"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            error={error}
+          />
+        </div>
+        <Button type="submit" block={false} loading={add.isPending} className="sm:mt-6">
+          Add to group
+        </Button>
+      </form>
+      {added && (
+        <div className="mt-3">
+          <FormSuccess>{added} was added to the group.</FormSuccess>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+export function GuestBadge() {
+  return (
+    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+      Guest
+    </span>
   );
 }
 

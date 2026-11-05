@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   acceptInvitation,
+  addGuest,
   cancelInvitation,
   createGroup,
   declineInvitation,
@@ -10,6 +11,7 @@ import {
   listGroupInvitations,
   listGroups,
   listMyInvitations,
+  removeGuest,
 } from "../api/groups.ts";
 
 /** Cache keys, so changes can refresh exactly what they affect. */
@@ -61,6 +63,23 @@ export function useLeaveGroup(groupId: string) {
       queryClient.removeQueries({ queryKey: groupKeys.detail(groupId) });
       return queryClient.invalidateQueries({ queryKey: groupKeys.all });
     },
+  });
+}
+
+/** Adding or removing a guest changes the members, balances and expense form, all under the group's key. */
+export function useAddGuest(groupId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (name: string) => addGuest(groupId, name),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: groupKeys.detail(groupId) }),
+  });
+}
+
+export function useRemoveGuest(groupId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (guestId: string) => removeGuest(groupId, guestId),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: groupKeys.detail(groupId) }),
   });
 }
 
