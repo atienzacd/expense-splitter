@@ -206,3 +206,36 @@ describe("cross-site request protection", () => {
     expect((await refresh(ana.refreshToken)).statusCode).toBe(200);
   });
 });
+
+describe("ending a session cuts off its access token at once", () => {
+  it("after logout, the old access token no longer works", async () => {
+    expect((await me(ana.token)).statusCode).toBe(200);
+    await ctx.app.inject({ method: "POST", url: "/api/auth/logout", cookies: { refresh_token: ana.refreshToken } });
+
+    // Someone who copied the cookie can't keep using it until it expires.
+    expect((await me(ana.token)).statusCode).toBe(401);
+    expect(logs.some((line) => line.securityEvent === "auth.token_rejected" && line.reason === "session_ended")).toBe(true);
+  });
+
+  it("after a refresh, the old access token is replaced by the new one", async () => {
+    const response = await refresh(ana.refreshToken);
+    expect((await me(ana.token)).statusCode).toBe(401);
+    expect((await me(cookieFrom(response, "access_token"))).statusCode).toBe(200);
+  });
+
+  it("when a stolen refresh token is detected, every access token stops working", async () => {
+    const otherDevice = await ctx.app.inject({
+      method: "POST",
+      url: "/api/auth/login",
+      payload: { email: ana.email, password: "a-long-test-password" },
+    });
+    await refresh(ana.refreshToken);
+    await ctx.prisma.session.updateMany({
+      where: { userId: ana.id, revokedAt: { not: null } },
+      data: { revokedAt: new Date(Date.now() - 60_000) },
+    });
+    await refresh(ana.refreshToken); // reuse → every session ends
+
+    expect((await me(cookieFrom(otherDevice, "access_token"))).statusCode).toBe(401);
+  });
+});

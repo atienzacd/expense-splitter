@@ -2,24 +2,28 @@ import { SignJWT, jwtVerify } from "jose";
 
 /**
  * Access tokens are short JWTs signed with HS256. They hold only the user's id
- * (the `sub` claim), so nothing sensitive is exposed if one is decoded.
+ * (`sub`) and the id of the login session they belong to (`sid`), so nothing
+ * sensitive is exposed if one is decoded. The session id lets the server
+ * reject the token as soon as that session ends (logout, rotation, theft).
  */
 
 const ALGORITHM = "HS256";
 const ISSUER = "expense-splitter";
 
+export type AccessClaims = { userId: string; sessionId: string };
+
 export type TokenSigner = {
-  sign(userId: string): Promise<string>;
-  /** Returns the user id, or null if the token is invalid or expired. */
-  verify(token: string): Promise<string | null>;
+  sign(claims: AccessClaims): Promise<string>;
+  /** Returns the claims, or null if the token is invalid, expired or incomplete. */
+  verify(token: string): Promise<AccessClaims | null>;
 };
 
 export function createTokenSigner(secret: string, expiresIn: string): TokenSigner {
   const key = new TextEncoder().encode(secret);
 
   return {
-    async sign(userId) {
-      return new SignJWT()
+    async sign({ userId, sessionId }) {
+      return new SignJWT({ sid: sessionId })
         .setProtectedHeader({ alg: ALGORITHM })
         .setSubject(userId)
         .setIssuer(ISSUER)
@@ -31,7 +35,8 @@ export function createTokenSigner(secret: string, expiresIn: string): TokenSigne
     async verify(token) {
       try {
         const { payload } = await jwtVerify(token, key, { algorithms: [ALGORITHM], issuer: ISSUER });
-        return payload.sub ?? null;
+        if (typeof payload.sub !== "string" || typeof payload.sid !== "string") return null;
+        return { userId: payload.sub, sessionId: payload.sid };
       } catch {
         return null;
       }

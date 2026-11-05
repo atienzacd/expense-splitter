@@ -8,7 +8,8 @@ export default defineConfig({
     // In development the API runs separately (npm run dev:server); forwarding
     // /api keeps the browser on one origin. In production the API server will
     // host the built files (planned with the Docker image).
-    proxy: { "/api": "http://127.0.0.1:3000" },
+    // API_PROXY_TARGET lets the end-to-end tests point at their own API server.
+    proxy: { "/api": process.env.API_PROXY_TARGET ?? "http://127.0.0.1:3000" },
   },
   test: {
     environment: "jsdom",

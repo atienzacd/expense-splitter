@@ -11,7 +11,7 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 - **Debt simplification**: if Ana owes Ben ₱500 and Ben owes Cara ₱500, the app just tells Ana to pay Cara. A greedy algorithm settles a group of _n_ people in at most _n − 1_ payments.
 - **Secure authentication**: argon2id password hashing (Node's built-in implementation, OWASP settings); 15-minute access tokens and rotating 14-day refresh tokens in httpOnly, SameSite=Strict cookies that page scripts can't read; real server-side logout; reuse of a stolen refresh token ends every session; cross-site request blocking; rate-limited login and sign-up; and login answers "wrong password" and "no such account" identically, in the same time.
 - **ISO 27001-aligned**: the applicable Annex A technological controls (access control, secure authentication, security event logging with secret redaction, input and rate limits, vulnerability management, CodeQL scanning) are implemented and mapped in [SECURITY.md](SECURITY.md), including the known gaps.
-- **Tested at two levels**: fast unit tests on Linux, Windows and macOS, plus integration tests against a real PostgreSQL database in CI.
+- **Tested at three levels**: fast unit tests on Linux, Windows and macOS; API integration tests against a real PostgreSQL database; and Playwright end-to-end tests where two real browsers sign up, share a trip and settle up.
 - **Supply-chain care**: CI fails on any high or critical `npm audit` finding, Dependabot opens weekly update PRs, unreviewed package install scripts are blocked (`strict-allow-scripts`), and GitHub Actions are pinned to commit SHAs.
 
 ## Tech stack
@@ -20,7 +20,7 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 
 **Client:** React · TypeScript · Vite · React Router · TanStack Query · Zod · Tailwind CSS
 
-**Tooling:** npm workspaces · Oxlint · Vitest · Testing Library · Docker · GitHub Actions · CodeQL
+**Tooling:** npm workspaces · Oxlint · Vitest · Testing Library · Playwright · Docker · GitHub Actions · CodeQL
 
 ## Getting started
 
@@ -35,6 +35,8 @@ npm run db:generate -w server            # generate the typed database client
 npm run lint                             # Oxlint, including type-aware rules
 npm test                                 # unit tests for server and client
 npm run test:integration                 # API tests against a separate splitter_test database
+npm run install-browser -w e2e           # once: download Chromium for Playwright
+npm run test:e2e                         # a real browser clicks through the whole app
 ```
 
 Then run the API and the web app in two terminals:
@@ -49,7 +51,8 @@ In development the web app forwards `/api` requests to the API, so the browser t
 ```
 expense-splitter/
 ├── server/   Fastify API, Prisma schema, unit and integration tests
-└── client/   React app (Vite, Tailwind), component tests
+├── client/   React app (Vite, Tailwind), component tests
+└── e2e/      Playwright end-to-end tests (two browsers, the full flow)
 ```
 
 ## API
@@ -101,7 +104,7 @@ Adding an expense:
 - [x] Authentication (register, login, JWT)
 - [x] Groups, expenses and balances API
 - [x] React frontend: log in / sign up, groups and invitations, expenses, balances and settling up
-- [ ] Playwright end-to-end tests in CI
+- [x] Playwright end-to-end tests in CI (two browsers, sign-up to settled up)
 - [ ] Docker image (amd64 + arm64), image scanning, live demo
 
 ## License

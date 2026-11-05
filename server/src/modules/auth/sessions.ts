@@ -18,7 +18,7 @@ const TOKEN_BYTES = 32;
 const REUSE_GRACE_MS = 30_000;
 
 export type RefreshOutcome =
-  | { status: "rotated"; userId: string; token: string; expiresAt: Date }
+  | { status: "rotated"; userId: string; sessionId: string; token: string; expiresAt: Date }
   | { status: "reused"; userId: string }
   | { status: "invalid" };
 
@@ -30,11 +30,14 @@ export async function createSession(
   prisma: PrismaClient,
   userId: string,
   ttlSeconds: number,
-): Promise<{ token: string; expiresAt: Date }> {
+): Promise<{ sessionId: string; token: string; expiresAt: Date }> {
   const token = randomBytes(TOKEN_BYTES).toString("base64url");
   const expiresAt = new Date(Date.now() + ttlSeconds * 1000);
-  await prisma.session.create({ data: { userId, tokenHash: hashToken(token), expiresAt } });
-  return { token, expiresAt };
+  const session = await prisma.session.create({
+    data: { userId, tokenHash: hashToken(token), expiresAt },
+    select: { id: true },
+  });
+  return { sessionId: session.id, token, expiresAt };
 }
 
 export async function rotateSession(prisma: PrismaClient, token: string, ttlSeconds: number): Promise<RefreshOutcome> {

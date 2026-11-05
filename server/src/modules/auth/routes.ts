@@ -39,7 +39,10 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
   /** Starts a new session and hands the browser its cookies. Tokens never go in the response body. */
   async function logIn(reply: FastifyReply, userId: string): Promise<void> {
     const session = await createSession(prisma, userId, cookies.refreshTtlSeconds);
-    setLoginCookies(reply, cookies, { accessToken: await tokens.sign(userId), refreshToken: session.token });
+    setLoginCookies(reply, cookies, {
+      accessToken: await tokens.sign({ userId, sessionId: session.sessionId }),
+      refreshToken: session.token,
+    });
   }
 
   app.post("/register", rateLimited, async (request, reply) => {
@@ -100,7 +103,10 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
       clearLoginCookies(reply, cookies);
       return reply.status(401).send(sessionExpired);
     }
-    setLoginCookies(reply, cookies, { accessToken: await tokens.sign(user.id), refreshToken: outcome.token });
+    setLoginCookies(reply, cookies, {
+      accessToken: await tokens.sign({ userId: user.id, sessionId: outcome.sessionId }),
+      refreshToken: outcome.token,
+    });
     return { user };
   });
 
