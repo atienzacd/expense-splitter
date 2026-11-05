@@ -90,6 +90,8 @@ const envSchema = z.object({
   // secure, so this stays on in development too; turn it off only if your
   // browser refuses cookies on a plain-HTTP development address.
   COOKIE_SECURE: z.stringbool().default(true),
+  // Folder with the built web app to host alongside the API (set in Docker).
+  STATIC_DIR: z.string().min(1).optional(),
 });
 
 /** A duration like "15m", "12h" or "7d", with an upper limit. */

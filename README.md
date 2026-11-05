@@ -2,7 +2,7 @@
 
 Split shared expenses with friends, roommates or travel buddies, and see the fewest payments needed to settle up.
 
-> 🚧 Work in progress. The app works end to end: sign up, create a group, invite friends, add expenses and settle up. End-to-end tests and a Docker image are next.
+The app works end to end: sign up, create a group, invite friends, add expenses and settle up. Run it all with one Docker command (see [Run with Docker](#run-with-docker)).
 
 ## Highlights
 
@@ -13,6 +13,7 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 - **ISO 27001-aligned**: the applicable Annex A technological controls (access control, secure authentication, security event logging with secret redaction, input and rate limits, vulnerability management, CodeQL scanning) are implemented and mapped in [SECURITY.md](SECURITY.md), including the known gaps.
 - **Tested at three levels**: fast unit tests on Linux, Windows and macOS; API integration tests against a real PostgreSQL database; and Playwright end-to-end tests where two real browsers sign up, share a trip and settle up.
 - **Supply-chain care**: CI fails on any high or critical `npm audit` finding, Dependabot opens weekly update PRs, unreviewed package install scripts are blocked (`strict-allow-scripts`), and GitHub Actions are pinned to commit SHAs.
+- **Hardened container**: one multi-stage image where the API also hosts the web app; production dependencies only, no npm, non-root user, read-only filesystem; scanned with Trivy in CI (fails on fixable high or critical vulnerabilities) and smoke-tested with the real database.
 
 ## Tech stack
 
@@ -22,7 +23,17 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 
 **Tooling:** npm workspaces · Oxlint · Vitest · Testing Library · Playwright · Docker · GitHub Actions · CodeQL
 
-## Getting started
+## Run with Docker
+
+The quickest way to try it: only Docker is needed.
+
+```bash
+JWT_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))") docker compose up --build
+```
+
+Then open <http://localhost:8080>. Compose starts PostgreSQL, applies the migrations, and runs the app; the server refuses to start without a `JWT_SECRET` of at least 32 random characters. (On Windows PowerShell, set `$env:JWT_SECRET` first, then run `docker compose up --build`.)
+
+## Getting started (development)
 
 Requirements: Node.js 26+ and Docker.
 
@@ -105,7 +116,8 @@ Adding an expense:
 - [x] Groups, expenses and balances API
 - [x] React frontend: log in / sign up, groups and invitations, expenses, balances and settling up
 - [x] Playwright end-to-end tests in CI (two browsers, sign-up to settled up)
-- [ ] Docker image (amd64 + arm64), image scanning, live demo
+- [x] Docker image (API hosts the app), Trivy scanning and smoke test in CI
+- [ ] Published multi-platform image (amd64 + arm64) and a live demo
 
 ## License
 
