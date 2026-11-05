@@ -4,6 +4,14 @@ Split shared expenses with friends, roommates or travel buddies, and see the few
 
 The app works end to end: sign up, create a group, invite friends, add expenses and settle up. Run it all with one Docker command (see [Run with Docker](#run-with-docker)).
 
+## Screenshots
+
+![Group page in dark mode: each member's balance in green or red, and the fewest payments to settle up, with a Mark as paid button](docs/screenshots/balances-dark.png)
+
+| Your groups and invitations | Splitting by percentage | On a phone |
+| --- | --- | --- |
+| ![Groups page with a pending invitation, a form to create a group, and group cards with member counts](docs/screenshots/groups-light.png) | ![Add-expense form split by percentages, confirming they add up to 100%](docs/screenshots/add-expense-light.png) | ![The group page on a phone in dark mode, showing balances and who pays whom](docs/screenshots/mobile-dark.png) |
+
 ## Highlights
 
 - **Money is stored as whole centavos**, never floats, so rounding can't lose or create money. Every split adds up to the exact total.
@@ -57,7 +65,9 @@ npm run dev:server                       # API on http://127.0.0.1:3000/api
 npm run dev:client                       # app on http://localhost:5173
 ```
 
-In development the web app forwards `/api` requests to the API, so the browser talks to a single origin. (Serving the built app from the API server in production comes with the Docker milestone.) `npm run dev:server` runs the TypeScript source directly with Node's built-in type stripping and restarts on save. Browse the data with `npm run db:studio -w server`.
+In development the web app forwards `/api` requests to the API, so the browser talks to a single origin; in the Docker image the API server hosts the built app itself. `npm run dev:server` runs the TypeScript source directly with Node's built-in type stripping and restarts on save. Browse the data with `npm run db:studio -w server`.
+
+To refresh the README screenshots, start the app with Docker (above) and run `node e2e/scripts/screenshots.ts`. It creates demo people on example.com and saves the images to `docs/screenshots/`.
 
 ```
 expense-splitter/

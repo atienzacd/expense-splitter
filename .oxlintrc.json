@@ -34,6 +34,11 @@
   },
   "overrides": [
     {
+      // Command-line scripts report progress on the console on purpose.
+      "files": ["**/scripts/**"],
+      "rules": { "no-console": "off" }
+    },
+    {
       // Small helpers inside a describe block keep each test file readable.
       "files": ["**/*.test.ts", "**/*.test.tsx", "**/tests/**"],
       "rules": { "unicorn/consistent-function-scoping": "off" }
