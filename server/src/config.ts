@@ -1,5 +1,6 @@
 import { isIP } from "node:net";
 import { z } from "zod";
+import { DEFAULT_EXCHANGE_RATES_URL } from "./modules/rates/source.ts";
 
 const DURATION = /^[1-9]\d*[smhd]$/;
 const DURATION_SECONDS = { s: 1, m: 60, h: 3600, d: 86_400 } as const;
@@ -92,6 +93,12 @@ const envSchema = z.object({
   COOKIE_SECURE: z.stringbool().default(true),
   // Folder with the built web app to host alongside the API (set in Docker).
   STATIC_DIR: z.string().min(1).optional(),
+  // Where exchange rates come from (Frankfurter, which republishes the European
+  // Central Bank's daily rates). HTTPS only.
+  EXCHANGE_RATES_URL: z
+    .url({ protocol: /^https$/, error: "EXCHANGE_RATES_URL must be an https:// address" })
+    .transform((value) => value.replace(/\/+$/, ""))
+    .default(DEFAULT_EXCHANGE_RATES_URL),
 });
 
 /** A duration like "15m", "12h" or "7d", with an upper limit. */

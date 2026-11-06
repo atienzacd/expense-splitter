@@ -1,12 +1,21 @@
 import type { FastifyInstance } from "fastify";
 import { buildApp, type AppOptions } from "../../src/app.ts";
 import { createPrismaClient, type PrismaClient } from "../../src/db.ts";
+import type { ExchangeRateSource } from "../../src/modules/rates/source.ts";
 
 /** A separate database so tests never touch your development data. */
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ?? "postgresql://splitter:splitter@localhost:5432/splitter_test";
 
 export const TEST_JWT_SECRET = "integration-test-secret-at-least-32-chars";
+
+/** 1 JPY = 0.39756 PHP and 1 USD = 58.1 PHP; anything else is "unavailable". */
+export const fakeExchangeRates: ExchangeRateSource = async (from, to) => {
+  const rates: Record<string, string> = { "JPY-PHP": "0.39756", "USD-PHP": "58.1" };
+  const rate = from === to ? "1" : rates[`${from}-${to}`];
+  if (!rate) throw new Error(`no test rate for ${from}-${to}`);
+  return { rate, date: "2026-11-05" };
+};
 
 export type TestContext = { app: FastifyInstance; prisma: PrismaClient };
 
@@ -18,6 +27,8 @@ export async function createTestContext(overrides: Partial<AppOptions> = {}): Pr
     // High enough that ordinary tests never hit them; the rate-limit tests lower them.
     globalRateLimit: { max: 10_000, timeWindow: "1 minute" },
     authRateLimit: { max: 1000, timeWindow: "1 minute" },
+    // Tests never call the real exchange rate service.
+    exchangeRates: fakeExchangeRates,
     ...overrides,
   });
   return { app, prisma };

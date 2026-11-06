@@ -13,6 +13,7 @@ const group = {
   name: "Baguio trip",
   createdAt: joined,
   createdById: ana.id,
+  currency: "PHP",
   members: [ana, ben, cara].map((m) => ({ ...m, joinedAt: joined })),
 };
 

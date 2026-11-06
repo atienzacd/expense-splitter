@@ -106,3 +106,20 @@ export function splitByPercentage(total: number, shares: PercentageShare[]): Sha
   const amounts = allocate(total, basisPoints);
   return shares.map(({ userId }, i) => ({ userId, amountOwed: amounts[i]! }));
 }
+
+/**
+ * Shares `total` out in proportion to `shares` (largest remainder method), so
+ * the result still adds up to exactly `total`. Used when an expense paid in
+ * another currency was split by exact amounts in that currency: each person's
+ * share of the converted total keeps the same proportion.
+ */
+export function splitProportionally(total: number, shares: Share[]): Share[] {
+  assertPositiveCentavos(total, "Total");
+  assertUniqueUsers(shares.map((s) => s.userId));
+  for (const share of shares) {
+    assertPositiveCentavos(share.amountOwed, `Amount for ${share.userId}`);
+  }
+
+  const amounts = allocate(total, shares.map((s) => s.amountOwed));
+  return shares.map(({ userId }, i) => ({ userId, amountOwed: amounts[i]! }));
+}

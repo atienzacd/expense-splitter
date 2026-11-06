@@ -3,9 +3,10 @@ import { Link, useNavigate } from "react-router";
 import { z } from "zod";
 import type { MyInvitation } from "../api/groups.ts";
 import { Card } from "../components/Card.tsx";
-import { Button, FormAlert, TextField } from "../components/form.tsx";
+import { Button, FormAlert, SelectField, TextField } from "../components/form.tsx";
 import { useCreateGroup, useGroups, useMyInvitations, useRespondToInvitation } from "../groups/queries.ts";
 import { validate } from "../lib/forms.ts";
+import { CURRENCY_OPTIONS, type Currency, DEFAULT_CURRENCY, isCurrency } from "../lib/money.ts";
 
 const groupName = z.object({ name: z.string().trim().min(1, "Give the group a name").max(100, "Use at most 100 characters") });
 
@@ -77,6 +78,7 @@ function CreateGroup() {
   const create = useCreateGroup();
   const navigate = useNavigate();
   const [name, setName] = useState("");
+  const [currency, setCurrency] = useState<Currency>(DEFAULT_CURRENCY);
   const [error, setError] = useState<string>();
 
   function onSubmit(event: FormEvent) {
@@ -84,7 +86,10 @@ function CreateGroup() {
     const result = validate(groupName, { name });
     setError(result.ok ? undefined : result.errors.name);
     if (!result.ok) return;
-    create.mutate(result.data.name, { onSuccess: ({ group }) => void navigate(`/groups/${group.id}`) });
+    create.mutate(
+      { name: result.data.name, currency },
+      { onSuccess: ({ group }) => void navigate(`/groups/${group.id}`) },
+    );
   }
 
   return (
@@ -99,10 +104,26 @@ function CreateGroup() {
             error={error}
           />
         </div>
+        <div className="sm:w-56">
+          <SelectField
+            label="Settle up in"
+            value={currency}
+            onChange={(event) => isCurrency(event.target.value) && setCurrency(event.target.value)}
+          >
+            {CURRENCY_OPTIONS.map((option) => (
+              <option key={option.code} value={option.code}>
+                {option.label}
+              </option>
+            ))}
+          </SelectField>
+        </div>
         <Button type="submit" block={false} loading={create.isPending} className="sm:mt-6">
           Create group
         </Button>
       </form>
+      <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">
+        Balances and payments are in this currency. Expenses can still be added in others, like yen on a trip to Japan.
+      </p>
       {create.isError && (
         <div className="mt-3">
           <FormAlert>Couldn't create the group. Please try again.</FormAlert>
@@ -135,7 +156,7 @@ function GroupList() {
           >
             <span className="block font-semibold">{group.name}</span>
             <span className="text-sm text-slate-500 dark:text-slate-400">
-              {group.memberCount} {group.memberCount === 1 ? "member" : "members"}
+              {group.memberCount} {group.memberCount === 1 ? "member" : "members"} · {group.currency}
             </span>
           </Link>
         </li>

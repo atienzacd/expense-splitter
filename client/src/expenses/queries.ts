@@ -1,5 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createExpense, deleteExpense, listExpenses, type NewExpense } from "../api/expenses.ts";
+import { getRate } from "../api/rates.ts";
+import type { Currency } from "../lib/money.ts";
 import { groupKeys } from "../groups/queries.ts";
 
 export const expenseKeys = {
@@ -24,3 +26,13 @@ export function useDeleteExpense(groupId: string) {
   const refresh = useRefreshGroup(groupId);
   return useMutation({ mutationFn: (expenseId: string) => deleteExpense(groupId, expenseId), onSuccess: refresh });
 }
+
+/** A suggested rate for converting `from` into the group's currency. Rates change daily, so an hour is fresh enough. */
+export const useExchangeRate = (from: Currency, to: Currency) =>
+  useQuery({
+    queryKey: ["rates", from, to],
+    queryFn: () => getRate(from, to),
+    enabled: from !== to,
+    staleTime: 60 * 60 * 1000,
+    retry: false,
+  });

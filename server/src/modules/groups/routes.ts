@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { PrismaClient } from "../../db.ts";
 import { HttpError } from "../../errors.ts";
 import { computeBalances } from "../../lib/settle.ts";
+import { currency, DEFAULT_CURRENCY } from "../../lib/currency.ts";
 import { email, personName, publicUserSelect } from "../../lib/schemas.ts";
 import { logSecurityEvent } from "../../security.ts";
 import { groupParams, requireMembership } from "./membership.ts";
@@ -15,7 +16,9 @@ export type GroupRoutesOptions = {
   fingerprintEmail: (email: string) => string;
 };
 
-const createGroupBody = z.object({ name: z.string().trim().min(1).max(100) });
+// Every amount in the group (balances, payments, expenses after converting)
+// is in its currency. It can't be changed later, since stored amounts are in it.
+const createGroupBody = z.object({ name: z.string().trim().min(1).max(100), currency: currency.default(DEFAULT_CURRENCY) });
 const inviteBody = z.object({ email });
 const invitationParams = groupParams.extend({ invitationId: z.uuid() });
 const guestBody = z.object({ name: personName });
@@ -27,7 +30,7 @@ export async function groupRoutes(app: FastifyInstance, options: GroupRoutesOpti
   app.get("/", async (request) => {
     const groups = await prisma.group.findMany({
       where: { members: { some: { userId: request.userId } } },
-      select: { id: true, name: true, createdAt: true, _count: { select: { members: true } } },
+      select: { id: true, name: true, currency: true, createdAt: true, _count: { select: { members: true } } },
       orderBy: { createdAt: "desc" },
     });
     return {
@@ -36,14 +39,15 @@ export async function groupRoutes(app: FastifyInstance, options: GroupRoutesOpti
   });
 
   app.post("/", async (request, reply) => {
-    const { name } = createGroupBody.parse(request.body);
+    const { name, currency: groupCurrency } = createGroupBody.parse(request.body);
     const group = await prisma.group.create({
       data: {
         name,
+        currency: groupCurrency,
         createdById: request.userId,
         members: { create: { userId: request.userId } },
       },
-      select: { id: true, name: true, createdAt: true },
+      select: { id: true, name: true, currency: true, createdAt: true },
     });
     return reply.status(201).send({ group });
   });
@@ -57,6 +61,7 @@ export async function groupRoutes(app: FastifyInstance, options: GroupRoutesOpti
       select: {
         id: true,
         name: true,
+        currency: true,
         createdAt: true,
         createdById: true,
         members: { select: { joinedAt: true, user: { select: publicUserSelect } }, orderBy: { joinedAt: "asc" } },

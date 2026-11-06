@@ -61,6 +61,8 @@ model Session {
 model Group {
   id          String   @id @default(uuid(7)) @db.Uuid
   name        String
+  /// ISO 4217 code. Every amount in the group is in this currency.
+  currency    String   @default("PHP") @db.Char(3)
   createdById String   @map("created_by_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at")
 
@@ -110,7 +112,13 @@ model Expense {
   groupId     String    @map("group_id") @db.Uuid
   paidById    String    @map("paid_by_id") @db.Uuid
   description String
+  /// In the group's currency (converted, if it was paid in another one).
   amount      Int
+  /// Set only when it was paid in another currency: what was actually paid,
+  /// and the rate used to convert it (1 unit of it = this much of the group's).
+  originalCurrency String?  @map("original_currency") @db.Char(3)
+  originalAmount   Int?     @map("original_amount")
+  exchangeRate     Decimal? @map("exchange_rate") @db.Decimal(20, 10)
   splitType   SplitType @map("split_type")
   createdAt   DateTime  @default(now()) @map("created_at")
 

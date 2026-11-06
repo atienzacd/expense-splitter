@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { formatPesos, MAX_CENTAVOS, parsePesos, splitEvenly } from "./money.ts";
+import {
+  convertMoney,
+  CURRENCY_OPTIONS,
+  currencySymbol,
+  formatMoney,
+  formatPesos,
+  MAX_CENTAVOS,
+  parseMoney,
+  parsePesos,
+  parseRate,
+  splitEvenly,
+} from "./money.ts";
 
 describe("parsePesos", () => {
   it.each([
@@ -47,5 +58,42 @@ describe("splitEvenly", () => {
 
   it("returns nothing for nobody", () => {
     expect(splitEvenly(100, 0)).toEqual([]);
+  });
+});
+
+describe("other currencies", () => {
+  it("formats each with its own decimals", () => {
+    expect(formatMoney(3000, "JPY")).toBe("¥3,000");
+    expect(formatMoney(1234, "USD")).toBe("$12.34");
+    expect(formatMoney(150_000, "KRW")).toBe("₩150,000");
+  });
+
+  it("reads amounts with the right number of decimals", () => {
+    expect(parseMoney("3,000", "JPY")).toBe(3000);
+    expect(parseMoney("¥3000", "JPY")).toBe(3000);
+    expect(parseMoney("3000.5", "JPY")).toBeNull();
+    expect(parseMoney("US$12.34", "USD")).toBe(1234);
+    expect(parseMoney("-5", "USD")).toBeNull();
+  });
+
+  it("converts exactly like the server", () => {
+    expect(convertMoney(3000, "JPY", "PHP", "0.39756")).toBe(119_268);
+    expect(convertMoney(1234, "USD", "PHP", "58.1")).toBe(71_695);
+    expect(convertMoney(1, "JPY", "PHP", "0.001")).toBeNull();
+  });
+
+  it("accepts rates as plain decimals only", () => {
+    expect(parseRate(" 0.3976 ")).toBe("0.3976");
+    for (const bad of ["", "0", "0.00", "-1", "1e3", "abc", ".5"]) expect(parseRate(bad)).toBeNull();
+  });
+
+  it("knows the symbols people expect", () => {
+    expect(currencySymbol("PHP")).toBe("₱");
+    expect(currencySymbol("JPY")).toBe("¥");
+  });
+
+  it("lists pesos first", () => {
+    expect(CURRENCY_OPTIONS[0]).toEqual({ code: "PHP", label: "PHP — Philippine Peso" });
+    expect(CURRENCY_OPTIONS.map((o) => o.code)).toContain("JPY");
   });
 });

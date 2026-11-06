@@ -3,12 +3,12 @@ import { z } from "zod";
 import type { PrismaClient } from "../../db.ts";
 import { HttpError } from "../../errors.ts";
 import { logSecurityEvent } from "../../security.ts";
+import { ConversionError, convert, type Currency, currency, exchangeRate } from "../../lib/currency.ts";
 import { centavos } from "../../lib/schemas.ts";
-import { type Share, splitByPercentage, splitEqually, splitExact } from "../../lib/split.ts";
+import { type Share, splitByPercentage, splitEqually, splitExact, splitProportionally } from "../../lib/split.ts";
 import { groupParams, listMemberIds, requireAllMembers, requireMembership } from "../groups/membership.ts";
 
 export type ExpenseRoutesOptions = { prisma: PrismaClient };
-
 
 const splitSchema = z.discriminatedUnion("type", [
   // Leave out userIds to split between everyone in the group.
@@ -25,7 +25,12 @@ const splitSchema = z.discriminatedUnion("type", [
 
 const createExpenseBody = z.object({
   description: z.string().trim().min(1).max(200),
+  // In whole minor units of `currency` (₱150.75 → 15075, ¥3,000 → 3000).
   amount: centavos,
+  // Defaults to the group's currency. Any other one needs `exchangeRate`:
+  // how much 1 unit of it is worth in the group's currency.
+  currency: currency.optional(),
+  exchangeRate: exchangeRate.optional(),
   // Defaults to the person adding the expense.
   paidById: z.uuid().optional(),
   split: splitSchema,
@@ -37,11 +42,34 @@ const expenseSelect = {
   id: true,
   description: true,
   amount: true,
+  originalCurrency: true,
+  originalAmount: true,
+  exchangeRate: true,
   splitType: true,
   createdAt: true,
   paidBy: { select: { id: true, name: true } },
   splits: { select: { userId: true, amountOwed: true } },
 } as const;
+
+type StoredExpense = {
+  originalCurrency: string | null;
+  originalAmount: number | null;
+  exchangeRate: { toFixed(): string } | null;
+};
+
+/** Shapes an expense for the API: the original payment, if converted, as one object. */
+function present<T extends StoredExpense>({ originalCurrency, originalAmount, exchangeRate: rate, ...rest }: T) {
+  const original =
+    originalCurrency && originalAmount !== null && rate
+      ? { currency: originalCurrency, amount: originalAmount, exchangeRate: rate.toFixed() }
+      : null;
+  return { ...rest, original };
+}
+
+async function groupCurrency(prisma: PrismaClient, groupId: string): Promise<Currency> {
+  const group = await prisma.group.findUniqueOrThrow({ where: { id: groupId }, select: { currency: true } });
+  return group.currency as Currency;
+}
 
 export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRoutesOptions): Promise<void> {
   app.get("/:groupId/expenses", async (request) => {
@@ -53,7 +81,7 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
       select: expenseSelect,
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
-    return { expenses };
+    return { expenses: expenses.map(present) };
   });
 
   app.post("/:groupId/expenses", async (request, reply) => {
@@ -62,7 +90,23 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
     await requireMembership(prisma, groupId, request.userId);
 
     const paidById = body.paidById ?? request.userId;
-    const shares = await computeSplits(prisma, groupId, body.amount, body.split);
+    const target = await groupCurrency(prisma, groupId);
+    const paidIn = body.currency ?? target;
+    let amount = body.amount;
+    let original: { originalCurrency: string; originalAmount: number; exchangeRate: string } | undefined;
+    if (paidIn !== target) {
+      if (!body.exchangeRate) {
+        throw new HttpError(400, "ExchangeRateRequired", `Give the exchange rate from ${paidIn} to ${target}`);
+      }
+      try {
+        amount = convert(body.amount, paidIn, target, body.exchangeRate);
+      } catch (error) {
+        if (error instanceof ConversionError) throw new HttpError(400, "InvalidConversion", error.message);
+        throw error;
+      }
+      original = { originalCurrency: paidIn, originalAmount: body.amount, exchangeRate: body.exchangeRate };
+    }
+    const shares = await computeSplits(prisma, groupId, body.amount, amount, body.split);
     await requireAllMembers(prisma, groupId, [paidById, ...shares.map((s) => s.userId)]);
     // Tiny amounts can leave someone owing 0 (₱0.02 three ways); they aren't stored.
     const splits = shares.filter((share) => share.amountOwed > 0);
@@ -73,7 +117,8 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
         groupId,
         paidById,
         description: body.description,
-        amount: body.amount,
+        amount,
+        ...original,
         splitType: body.split.type,
         splits: { create: splits },
       },
@@ -83,9 +128,12 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
       groupId,
       expenseId: expense.id,
       amount: expense.amount,
+      currency: target,
+      originalCurrency: original?.originalCurrency,
+      originalAmount: original?.originalAmount,
       byUserId: request.userId,
     });
-    return reply.status(201).send({ expense });
+    return reply.status(201).send({ expense: present(expense) });
   });
 
   app.delete("/:groupId/expenses/:expenseId", async (request, reply) => {
@@ -102,20 +150,28 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
   });
 }
 
+/**
+ * Splits `amount` (in the group's currency). Exact shares are typed in the
+ * currency that was paid, so they must add up to `paidAmount`; when that was
+ * another currency, each person then gets the same proportion of `amount`.
+ */
 async function computeSplits(
   prisma: PrismaClient,
   groupId: string,
+  paidAmount: number,
   amount: number,
   split: z.infer<typeof splitSchema>,
 ): Promise<Share[]> {
   switch (split.type) {
     case "EQUAL":
       return splitEqually(amount, split.userIds ?? (await listMemberIds(prisma, groupId)));
-    case "EXACT":
-      return splitExact(
-        amount,
+    case "EXACT": {
+      const exact = splitExact(
+        paidAmount,
         split.shares.map((s) => ({ userId: s.userId, amountOwed: s.amount })),
       );
+      return paidAmount === amount ? exact : splitProportionally(amount, exact);
+    }
     case "PERCENTAGE":
       return splitByPercentage(amount, split.shares);
   }

@@ -1,6 +1,7 @@
 import { buildApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createPrismaClient } from "./db.ts";
+import { createFrankfurterSource } from "./modules/rates/source.ts";
 
 const config = loadConfig();
 const prisma = createPrismaClient(config.DATABASE_URL);
@@ -15,6 +16,7 @@ const app = await buildApp({
   staticDir: config.STATIC_DIR,
   trustProxy: config.TRUST_PROXY,
   logger: { level: config.LOG_LEVEL },
+  exchangeRates: createFrankfurterSource({ baseUrl: config.EXCHANGE_RATES_URL }),
 });
 
 // Finish in-flight requests and close the database pool on Ctrl+C or `docker stop`.

@@ -18,7 +18,16 @@ describe("loadConfig", () => {
       REFRESH_TOKEN_TTL: "14d",
       ALLOWED_ORIGINS: ["http://localhost:5173", "http://127.0.0.1:5173"],
       COOKIE_SECURE: true,
+      EXCHANGE_RATES_URL: "https://api.frankfurter.dev/v1",
     });
+  });
+
+  it("only fetches exchange rates over HTTPS", () => {
+    expect(loadConfig({ ...required, EXCHANGE_RATES_URL: "https://rates.example.com/v1/" }).EXCHANGE_RATES_URL).toBe(
+      "https://rates.example.com/v1",
+    );
+    expect(() => loadConfig({ ...required, EXCHANGE_RATES_URL: "http://rates.example.com" })).toThrow(/https/);
+    expect(() => loadConfig({ ...required, EXCHANGE_RATES_URL: "not a url" })).toThrow(/EXCHANGE_RATES_URL/);
   });
 
   it("reads PORT from a string", () => {

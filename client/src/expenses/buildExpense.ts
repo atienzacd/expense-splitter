@@ -1,21 +1,25 @@
 import type { NewExpense, SplitType } from "../api/expenses.ts";
-import { parsePesos } from "../lib/money.ts";
+import { convertMoney, type Currency, DEFAULT_CURRENCY, parseMoney, parseRate } from "../lib/money.ts";
 
 /** What the add-expense form holds: raw text, exactly as typed. */
 export type ExpenseFormValues = {
   description: string;
   amount: string;
+  /** What it was paid in; the group's currency when left out. */
+  currency?: Currency;
+  /** 1 unit of `currency` in the group's currency, as typed (or suggested). */
+  rate?: string;
   paidById: string;
   splitType: SplitType;
   /** EQUAL: who shares the cost. */
   included: Record<string, boolean>;
-  /** EXACT: each person's amount in pesos; blank means they owe nothing. */
+  /** EXACT: each person's amount in the paid currency; blank means they owe nothing. */
   exact: Record<string, string>;
   /** PERCENTAGE: each person's percentage; blank means 0%. */
   percent: Record<string, string>;
 };
 
-export type ExpenseFormErrors = { description?: string; amount?: string; split?: string };
+export type ExpenseFormErrors = { description?: string; amount?: string; rate?: string; split?: string };
 
 export type BuildResult = { ok: true; expense: NewExpense } | { ok: false; errors: ExpenseFormErrors };
 
@@ -33,14 +37,28 @@ export function percentToBasisPoints(input: string): number | null {
  * Checks the form the same way the server will, so mistakes show next to the
  * field instead of coming back as an error after submitting.
  */
-export function buildExpense(values: ExpenseFormValues, memberIds: string[]): BuildResult {
+export function buildExpense(
+  values: ExpenseFormValues,
+  memberIds: string[],
+  groupCurrency: Currency = DEFAULT_CURRENCY,
+): BuildResult {
   const errors: ExpenseFormErrors = {};
+  const paidIn = values.currency ?? groupCurrency;
+  const converting = paidIn !== groupCurrency;
+  const parseAmount = (input: string) => parseMoney(input, paidIn);
+  const example = paidIn === "JPY" || paidIn === "KRW" || paidIn === "ISK" ? "150 or 1,500" : "150 or 150.75";
   const description = values.description.trim();
   if (!description) errors.description = "Describe the expense";
   else if (description.length > 200) errors.description = "Use at most 200 characters";
 
-  const amount = parsePesos(values.amount);
-  if (amount === null) errors.amount = "Enter an amount like 150 or 150.75";
+  const amount = parseAmount(values.amount);
+  if (amount === null) errors.amount = `Enter an amount like ${example}`;
+
+  const rate = converting ? parseRate(values.rate ?? "") : null;
+  if (converting && rate === null) errors.rate = "Enter the rate, like 0.3976";
+  else if (converting && rate !== null && amount !== null && convertMoney(amount, paidIn, groupCurrency, rate) === null) {
+    errors.amount = "That amount is too small or too large after converting";
+  }
 
   let split: NewExpense["split"] | undefined;
   if (values.splitType === "EQUAL") {
@@ -52,9 +70,9 @@ export function buildExpense(values: ExpenseFormValues, memberIds: string[]): Bu
     for (const userId of memberIds) {
       const typed = values.exact[userId]?.trim() ?? "";
       if (!typed) continue;
-      const share = parsePesos(typed);
+      const share = parseAmount(typed);
       if (share === null) {
-        errors.split = "Each amount must be like 150 or 150.75";
+        errors.split = `Each amount must be like ${example}`;
         break;
       }
       shares.push({ userId, amount: share });
@@ -85,5 +103,6 @@ export function buildExpense(values: ExpenseFormValues, memberIds: string[]): Bu
   }
 
   if (Object.keys(errors).length > 0 || amount === null || !split) return { ok: false, errors };
-  return { ok: true, expense: { description, amount, paidById: values.paidById, split } };
+  const conversion = converting && rate !== null ? { currency: paidIn, exchangeRate: rate } : {};
+  return { ok: true, expense: { description, amount, ...conversion, paidById: values.paidById, split } };
 }

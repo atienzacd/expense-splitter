@@ -5,7 +5,10 @@ export type SplitType = "EQUAL" | "EXACT" | "PERCENTAGE";
 export type Expense = {
   id: string;
   description: string;
+  /** In the group's currency. */
   amount: number;
+  /** What was actually paid, when it was in another currency, and the rate used to convert it. */
+  original: { currency: string; amount: number; exchangeRate: string } | null;
   splitType: SplitType;
   createdAt: string;
   paidBy: { id: string; name: string };
@@ -17,7 +20,16 @@ export type SplitInput =
   | { type: "EXACT"; shares: { userId: string; amount: number }[] }
   | { type: "PERCENTAGE"; shares: { userId: string; percent: number }[] };
 
-export type NewExpense = { description: string; amount: number; paidById: string; split: SplitInput };
+export type NewExpense = {
+  description: string;
+  /** In minor units of `currency` (the group's own when left out). */
+  amount: number;
+  currency?: string;
+  /** Needed when `currency` isn't the group's: 1 unit of it in the group's currency. */
+  exchangeRate?: string;
+  paidById: string;
+  split: SplitInput;
+};
 
 export const listExpenses = async (groupId: string) =>
   (await api<{ expenses: Expense[] }>(`/groups/${groupId}/expenses`)).expenses;

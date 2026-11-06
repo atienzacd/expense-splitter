@@ -11,6 +11,7 @@ const trip = {
   name: "Baguio trip",
   createdAt: "2026-11-04T00:00:00.000Z",
   createdById: ana.id,
+  currency: "PHP",
   members: [
     { ...ana, joinedAt: "2026-11-04T00:00:00.000Z" },
     { ...ben, joinedAt: "2026-11-04T00:00:00.000Z" },
@@ -32,7 +33,7 @@ describe("groups list", () => {
       ...noInvitations,
       "GET /api/groups": {
         status: 200,
-        body: { groups: [{ id: groupId, name: "Baguio trip", createdAt: "", memberCount: 3 }] },
+        body: { groups: [{ id: groupId, name: "Baguio trip", currency: "PHP", createdAt: "", memberCount: 3 }] },
       },
     });
     renderAt("/groups");
