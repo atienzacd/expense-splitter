@@ -2,12 +2,14 @@ import { useState } from "react";
 import type { Expense } from "../api/expenses.ts";
 import type { Member } from "../api/groups.ts";
 import { Button, FormAlert } from "../components/form.tsx";
-import { formatPesos } from "../lib/money.ts";
+import { type Currency, formatMoney } from "../lib/money.ts";
 import { useDeleteExpense, useExpenses } from "./queries.ts";
 
 const dateFormat = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" });
 
-export function ExpenseList({ groupId, members, meId }: { groupId: string; members: Member[]; meId: string }) {
+type ExpenseListProps = { groupId: string; members: Member[]; meId: string; currency: Currency };
+
+export function ExpenseList({ groupId, members, meId, currency }: ExpenseListProps) {
   const expenses = useExpenses(groupId);
 
   if (expenses.isPending) return <output className="block text-slate-500">Loading expenses…</output>;
@@ -23,13 +25,15 @@ export function ExpenseList({ groupId, members, meId }: { groupId: string; membe
   return (
     <ul className="divide-y divide-slate-200 dark:divide-slate-800">
       {expenses.data.map((expense) => (
-        <ExpenseRow key={expense.id} groupId={groupId} expense={expense} nameOf={nameOf} />
+        <ExpenseRow key={expense.id} groupId={groupId} expense={expense} nameOf={nameOf} currency={currency} />
       ))}
     </ul>
   );
 }
 
-function ExpenseRow({ groupId, expense, nameOf }: { groupId: string; expense: Expense; nameOf: (id: string) => string }) {
+type ExpenseRowProps = { groupId: string; expense: Expense; nameOf: (id: string) => string; currency: Currency };
+
+function ExpenseRow({ groupId, expense, nameOf, currency }: ExpenseRowProps) {
   const remove = useDeleteExpense(groupId);
   const [confirming, setConfirming] = useState(false);
 
@@ -37,15 +41,21 @@ function ExpenseRow({ groupId, expense, nameOf }: { groupId: string; expense: Ex
     <li className="space-y-2 py-3 first:pt-0 last:pb-0">
       <div className="flex flex-wrap items-baseline justify-between gap-x-3">
         <h3 className="font-medium">{expense.description}</h3>
-        <span className="font-semibold tabular-nums">{formatPesos(expense.amount)}</span>
+        <span className="font-semibold tabular-nums">{formatMoney(expense.amount, currency)}</span>
       </div>
+      {expense.original && (
+        <p className="text-sm tabular-nums text-slate-600 dark:text-slate-300">
+          Paid {formatMoney(expense.original.amount, expense.original.currency)} · 1 {expense.original.currency} ={" "}
+          {expense.original.exchangeRate} {currency}
+        </p>
+      )}
       <p className="text-sm text-slate-500 dark:text-slate-400">
         {nameOf(expense.paidBy.id)} paid · {dateFormat.format(new Date(expense.createdAt))}
       </p>
       <ul aria-label={`Shares of ${expense.description}`} className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
         {expense.splits.map((split) => (
           <li key={split.userId} className="tabular-nums">
-            {nameOf(split.userId)} {formatPesos(split.amountOwed)}
+            {nameOf(split.userId)} {formatMoney(split.amountOwed, currency)}
           </li>
         ))}
       </ul>

@@ -18,6 +18,8 @@ import { balanceRoutes } from "./modules/balances/routes.ts";
 import { expenseRoutes } from "./modules/expenses/routes.ts";
 import { groupRoutes } from "./modules/groups/routes.ts";
 import { invitationRoutes } from "./modules/invitations/routes.ts";
+import { rateRoutes } from "./modules/rates/routes.ts";
+import { createFrankfurterSource, type ExchangeRateSource } from "./modules/rates/source.ts";
 
 export type AppOptions = {
   prisma: PrismaClient;
@@ -47,6 +49,8 @@ export type AppOptions = {
    * app and the API share one origin (used by the Docker image).
    */
   staticDir?: string;
+  /** Looks up exchange rates. Defaults to Frankfurter (European Central Bank rates). */
+  exchangeRates?: ExchangeRateSource;
 };
 
 type RateLimit = { max: number; timeWindow: string };
@@ -217,6 +221,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       await invitations.register(invitationRoutes, { prisma });
     },
     { prefix: "/api/invitations" },
+  );
+  await app.register(
+    async (rates) => {
+      rates.addHook("preHandler", authenticate);
+      await rates.register(rateRoutes, { exchangeRates: options.exchangeRates ?? createFrankfurterSource() });
+    },
+    { prefix: "/api/rates" },
   );
 
   return app;

@@ -15,6 +15,7 @@ The app works end to end: sign up, create a group, invite friends, add expenses 
 ## Highlights
 
 - **Money is stored as whole centavos**, never floats, so rounding can't lose or create money. Every split adds up to the exact total.
+- **Multiple currencies**: each group settles up in its own currency (30 supported), and expenses can be paid in any of them, like yen on a trip to Japan. The server suggests the day's European Central Bank rate (via Frankfurter) and you can change it to what your card actually charged; conversion is exact (BigInt, rounded half up) and the original amount and rate are kept on the expense.
 - **Three ways to split**: equally, by exact amounts, or by percentage (up to 2 decimals). Leftover centavos are distributed with the largest remainder method.
 - **Friends without accounts**: add people by name only, so one person can keep the books for the whole trip. Guests can pay for things and share costs like anyone else; members record their payments for them. Guests can never log in (enforced by a database constraint).
 - **Debt simplification**: if Ana owes Ben ₱500 and Ben owes Cara ₱500, the app just tells Ana to pay Cara. A greedy algorithm settles a group of _n_ people in at most _n − 1_ payments.
@@ -88,7 +89,7 @@ expense-splitter/
 | POST   | `/api/auth/logout`                        | 🍪   | End this device's session                          |
 | GET    | `/api/auth/me`                            | ✔    | The logged-in user                                |
 | GET    | `/api/groups`                             | ✔    | Groups you belong to                              |
-| POST   | `/api/groups`                             | ✔    | Create a group (you become its first member)      |
+| POST   | `/api/groups`                             | ✔    | Create a group in a currency (default PHP)        |
 | GET    | `/api/groups/:groupId`                    | ✔    | Group details and members                         |
 | POST   | `/api/groups/:groupId/invitations`        | ✔    | Invite someone by email                           |
 | GET    | `/api/groups/:groupId/invitations`        | ✔    | Invitations waiting to be accepted                |
@@ -103,6 +104,7 @@ expense-splitter/
 | POST   | `/api/groups/:groupId/expenses`           | ✔    | Add an expense (equal, exact or percentage split) |
 | DELETE | `/api/groups/:groupId/expenses/:expenseId`| ✔    | Delete an expense                                 |
 | GET    | `/api/groups/:groupId/balances`           | ✔    | Each member's balance and the fewest payments     |
+| GET    | `/api/rates?from=JPY&to=PHP`              | ✔    | Today's suggested exchange rate                   |
 | GET    | `/api/groups/:groupId/settlements`        | ✔    | Recorded payments, newest first                   |
 | POST   | `/api/groups/:groupId/settlements`        | ✔    | Record a payment you made, or one a guest made    |
 

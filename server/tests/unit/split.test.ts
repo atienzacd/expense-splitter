@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { SplitError, splitByPercentage, splitEqually, splitExact } from "../../src/lib/split.ts";
+import { SplitError, splitByPercentage, splitEqually, splitExact, splitProportionally } from "../../src/lib/split.ts";
 
 const sum = (shares: { amountOwed: number }[]) => shares.reduce((acc, s) => acc + s.amountOwed, 0);
 
@@ -147,5 +147,35 @@ describe("splitByPercentage", () => {
         { userId: "b", percent: -10 },
       ]),
     ).toThrow(SplitError);
+  });
+});
+
+describe("splitProportionally", () => {
+  it("keeps each person's proportion and adds up to the new total", () => {
+    // ¥1,000 split ¥700 / ¥300, converted to ₱397.56.
+    const shares = splitProportionally(39_756, [
+      { userId: "a", amountOwed: 700 },
+      { userId: "b", amountOwed: 300 },
+    ]);
+    expect(shares).toEqual([
+      { userId: "a", amountOwed: 27_829 },
+      { userId: "b", amountOwed: 11_927 },
+    ]);
+    expect(sum(shares)).toBe(39_756);
+  });
+
+  it("always adds up to the total", () => {
+    for (let total = 1; total <= 300; total++) {
+      expect(sum(splitProportionally(total, [
+        { userId: "a", amountOwed: 333 },
+        { userId: "b", amountOwed: 333 },
+        { userId: "c", amountOwed: 334 },
+      ]))).toBe(total);
+    }
+  });
+
+  it("rejects invalid shares", () => {
+    expect(() => splitProportionally(100, [{ userId: "a", amountOwed: 0 }])).toThrow(SplitError);
+    expect(() => splitProportionally(100, [])).toThrow(SplitError);
   });
 });

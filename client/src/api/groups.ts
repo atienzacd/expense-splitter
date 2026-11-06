@@ -1,9 +1,18 @@
+import type { Currency } from "../lib/money.ts";
 import { api, post } from "./client.ts";
 
-export type GroupSummary = { id: string; name: string; createdAt: string; memberCount: number };
+/** `currency` is the group's own: balances and payments are in it, and expenses are converted to it. */
+export type GroupSummary = { id: string; name: string; currency: Currency; createdAt: string; memberCount: number };
 /** A member of a group: someone with an account, or a guest added by name (no email, can't log in). */
 export type Member = { id: string; name: string; email: string | null; isGuest: boolean; joinedAt: string };
-export type GroupDetails = { id: string; name: string; createdAt: string; createdById: string; members: Member[] };
+export type GroupDetails = {
+  id: string;
+  name: string;
+  currency: Currency;
+  createdAt: string;
+  createdById: string;
+  members: Member[];
+};
 export type PendingInvitation = { id: string; email: string; createdAt: string; invitedBy: { id: string; name: string } };
 export type MyInvitation = {
   id: string;
@@ -14,7 +23,8 @@ export type MyInvitation = {
 
 export const listGroups = async () => (await api<{ groups: GroupSummary[] }>("/groups")).groups;
 
-export const createGroup = (name: string) => post<{ group: GroupSummary }>("/groups", { name });
+export const createGroup = ({ name, currency }: { name: string; currency: Currency }) =>
+  post<{ group: GroupSummary }>("/groups", { name, currency });
 
 export const getGroup = async (groupId: string) => (await api<{ group: GroupDetails }>(`/groups/${groupId}`)).group;
 

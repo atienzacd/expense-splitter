@@ -3,10 +3,10 @@ import type { Transfer } from "../api/balances.ts";
 import type { Member } from "../api/groups.ts";
 import { Card } from "../components/Card.tsx";
 import { Button, FormAlert, FormSuccess, SelectField, TextField } from "../components/form.tsx";
-import { formatPesos, parsePesos } from "../lib/money.ts";
+import { type Currency, currencySymbol, formatMoney, parseMoney } from "../lib/money.ts";
 import { useBalances, useRecordPayment, useSettlements } from "./queries.ts";
 
-type Props = { groupId: string; members: Member[]; meId: string };
+type Props = { groupId: string; members: Member[]; meId: string; currency: Currency };
 
 const dateFormat = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric", year: "numeric" });
 
@@ -17,7 +17,7 @@ function useNames(members: Member[], meId: string) {
     userId === meId ? (lower ? "you" : "You") : (names.get(userId) ?? "Former member");
 }
 
-export function Balances({ groupId, members, meId }: Props) {
+export function Balances({ groupId, members, meId, currency }: Props) {
   const balances = useBalances(groupId);
   const nameOf = useNames(members, meId);
   const guestIds = new Set(members.filter((m) => m.isGuest).map((m) => m.id));
@@ -38,7 +38,7 @@ export function Balances({ groupId, members, meId }: Props) {
                   {nameOf(balance.userId)}
                   {balance.isGuest && <span className="text-sm font-normal text-slate-500 dark:text-slate-400"> (guest)</span>}
                 </span>
-                <BalanceAmount net={balance.net} />
+                <BalanceAmount net={balance.net} currency={currency} />
               </li>
             ))}
           </ul>
@@ -59,22 +59,23 @@ export function Balances({ groupId, members, meId }: Props) {
                     meId={meId}
                     isGuest={isGuest}
                     nameOf={nameOf}
+                    currency={currency}
                   />
                 ))}
               </ul>
             )}
           </section>
 
-          <OtherPayment groupId={groupId} members={members} meId={meId} />
+          <OtherPayment groupId={groupId} members={members} meId={meId} currency={currency} />
         </div>
       )}
     </Card>
   );
 }
 
-function BalanceAmount({ net }: { net: number }) {
-  if (net > 0) return <span className="tabular-nums text-emerald-700 dark:text-emerald-400">gets back {formatPesos(net)}</span>;
-  if (net < 0) return <span className="tabular-nums text-red-700 dark:text-red-400">owes {formatPesos(-net)}</span>;
+function BalanceAmount({ net, currency }: { net: number; currency: Currency }) {
+  if (net > 0) return <span className="tabular-nums text-emerald-700 dark:text-emerald-400">gets back {formatMoney(net, currency)}</span>;
+  if (net < 0) return <span className="tabular-nums text-red-700 dark:text-red-400">owes {formatMoney(-net, currency)}</span>;
   return <span className="text-slate-500 dark:text-slate-400">settled up</span>;
 }
 
@@ -84,19 +85,20 @@ type TransferRowProps = {
   meId: string;
   isGuest: (userId: string) => boolean;
   nameOf: (userId: string, options?: { lower?: boolean }) => string;
+  currency: Currency;
 };
 
 /**
  * You can mark your own payments as paid. Guests can't log in, so any member
  * with an account can record theirs; nobody records for another account holder.
  */
-function TransferRow({ groupId, transfer, meId, isGuest, nameOf }: TransferRowProps) {
+function TransferRow({ groupId, transfer, meId, isGuest, nameOf, currency }: TransferRowProps) {
   const record = useRecordPayment(groupId);
   const [confirming, setConfirming] = useState(false);
   const youPay = transfer.fromUserId === meId;
   const guestPays = isGuest(transfer.fromUserId);
   const canRecord = youPay || guestPays;
-  const amount = formatPesos(transfer.amount);
+  const amount = formatMoney(transfer.amount, currency);
   const sentence = `${nameOf(transfer.fromUserId)} ${youPay ? "pay" : "pays"} ${nameOf(transfer.toUserId, { lower: true })} ${amount}`;
   const question = youPay
     ? `Record that you paid ${nameOf(transfer.toUserId)} ${amount}?`
@@ -145,7 +147,7 @@ function TransferRow({ groupId, transfer, meId, isGuest, nameOf }: TransferRowPr
 }
 
 /** For partial payments, or paying someone other than the suggestion. */
-function OtherPayment({ groupId, members, meId }: Props) {
+function OtherPayment({ groupId, members, meId, currency }: Props) {
   const record = useRecordPayment(groupId);
   // You can record your own payments and those of guests, who can't log in.
   const guests = members.filter((m) => m.isGuest);
@@ -164,7 +166,7 @@ function OtherPayment({ groupId, members, meId }: Props) {
   function onSubmit(event: FormEvent) {
     event.preventDefault();
     setRecorded(undefined);
-    const centavos = parsePesos(amount);
+    const centavos = parseMoney(amount, currency);
     setError(centavos === null ? "Enter an amount like 150 or 150.75" : undefined);
     if (centavos === null) return;
     record.mutate(
@@ -173,8 +175,8 @@ function OtherPayment({ groupId, members, meId }: Props) {
         onSuccess: () => {
           setRecorded(
             fromUserId === meId
-              ? `Recorded ${formatPesos(centavos)} to ${nameOf(toUserId)}.`
-              : `Recorded that ${nameOf(fromUserId)} paid ${nameOf(toUserId, { lower: true })} ${formatPesos(centavos)}.`,
+              ? `Recorded ${formatMoney(centavos, currency)} to ${nameOf(toUserId)}.`
+              : `Recorded that ${nameOf(fromUserId)} paid ${nameOf(toUserId, { lower: true })} ${formatMoney(centavos, currency)}.`,
           );
           setAmount("");
         },
@@ -214,7 +216,7 @@ function OtherPayment({ groupId, members, meId }: Props) {
             </SelectField>
           )}
           <TextField
-            label="Amount paid (₱)"
+            label={`Amount paid (${currencySymbol(currency)})`}
             inputMode="decimal"
             placeholder="0.00"
             value={amount}
@@ -232,7 +234,7 @@ function OtherPayment({ groupId, members, meId }: Props) {
   );
 }
 
-export function PaymentHistory({ groupId, members, meId }: Props) {
+export function PaymentHistory({ groupId, members, meId, currency }: Props) {
   const settlements = useSettlements(groupId);
   const nameOf = useNames(members, meId);
 
@@ -252,7 +254,7 @@ export function PaymentHistory({ groupId, members, meId }: Props) {
                 {nameOf(settlement.fromUserId)} paid {nameOf(settlement.toUserId, { lower: true })}
               </span>
               <span className="tabular-nums">
-                {formatPesos(settlement.amount)}{" "}
+                {formatMoney(settlement.amount, currency)}{" "}
                 <span className="text-sm text-slate-500 dark:text-slate-400">
                   · {dateFormat.format(new Date(settlement.createdAt))}
                 </span>

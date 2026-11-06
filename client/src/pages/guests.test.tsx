@@ -14,6 +14,7 @@ const group = {
   name: "Family reunion",
   createdAt: joined,
   createdById: ana.id,
+  currency: "PHP",
   members: [{ ...ana, isGuest: false }, lola, tito].map((m) => ({ ...m, joinedAt: joined })),
 };
 

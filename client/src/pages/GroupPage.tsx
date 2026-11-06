@@ -49,14 +49,14 @@ export function GroupPage() {
         <BackLink />
         <h1 className="text-2xl font-bold tracking-tight">{group.data.name}</h1>
       </div>
-      <Balances groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
+      <Balances groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} currency={group.data.currency} />
       <Card title="Add an expense">
-        <AddExpenseForm groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
+        <AddExpenseForm groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} currency={group.data.currency} />
       </Card>
       <Card title="Expenses">
-        <ExpenseList groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
+        <ExpenseList groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} currency={group.data.currency} />
       </Card>
-      <PaymentHistory groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} />
+      <PaymentHistory groupId={group.data.id} members={group.data.members} meId={me?.id ?? ""} currency={group.data.currency} />
       <Members group={group.data} />
       <Invite groupId={group.data.id} />
       <AddGuest groupId={group.data.id} />

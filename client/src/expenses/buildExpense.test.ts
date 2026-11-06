@@ -95,3 +95,40 @@ describe("percentToBasisPoints", () => {
     expect(percentToBasisPoints("1.234")).toBeNull();
   });
 });
+
+describe("buildExpense in another currency", () => {
+  it("sends the amount in the paid currency with its rate", () => {
+    const result = buildExpense(base({ amount: "3,000", currency: "JPY", rate: "0.39756" }), members, "PHP");
+    expect(result).toMatchObject({ ok: true, expense: { amount: 3000, currency: "JPY", exchangeRate: "0.39756" } });
+  });
+
+  it("needs a rate, and yen without decimals", () => {
+    const result = buildExpense(base({ amount: "3000.50", currency: "JPY", rate: "" }), members, "PHP");
+    expect(result).toEqual({
+      ok: false,
+      errors: { amount: "Enter an amount like 150 or 1,500", rate: "Enter the rate, like 0.3976" },
+    });
+  });
+
+  it("checks exact amounts against what was paid", () => {
+    const result = buildExpense(
+      base({ amount: "1000", currency: "JPY", rate: "0.4", splitType: "EXACT", exact: { ana: "700", ben: "300" } }),
+      members,
+      "PHP",
+    );
+    expect(result).toMatchObject({
+      ok: true,
+      expense: { amount: 1000, split: { type: "EXACT", shares: [{ userId: "ana", amount: 700 }, { userId: "ben", amount: 300 }] } },
+    });
+  });
+
+  it("refuses an amount that converts to nothing", () => {
+    const result = buildExpense(base({ amount: "1", currency: "JPY", rate: "0.001" }), members, "PHP");
+    expect(result).toMatchObject({ ok: false, errors: { amount: "That amount is too small or too large after converting" } });
+  });
+
+  it("sends no currency for the group's own", () => {
+    const result = buildExpense(base({ currency: "PHP", rate: "2" }), members, "PHP");
+    expect(result.ok && result.expense).not.toHaveProperty("currency");
+  });
+});
