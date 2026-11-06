@@ -160,7 +160,7 @@ describe("group page", () => {
           status: 200,
           body: {
             invitations: invited
-              ? [{ id: "inv-1", email: "carla@example.com", createdAt: "", invitedBy: { id: ana.id, name: "Ana" } }]
+              ? [{ id: "inv-1", email: "carla@example.com", createdAt: "", expiresAt: "2026-11-13T00:00:00.000Z", invitedBy: { id: ana.id, name: "Ana" } }]
               : [],
           },
         }),
@@ -174,6 +174,7 @@ describe("group page", () => {
 
     expect(await screen.findByText(/Invitation sent to carla@example.com/)).toBeInTheDocument();
     expect(await screen.findByRole("button", { name: "Cancel invitation for carla@example.com" })).toBeInTheDocument();
+    expect(screen.getByText("Expires Nov 13")).toBeInTheDocument();
     expect(screen.getByLabelText("Their email")).toHaveValue("");
   });
 

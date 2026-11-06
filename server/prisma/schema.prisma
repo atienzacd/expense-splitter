@@ -51,6 +51,9 @@ model Session {
   expiresAt DateTime  @map("expires_at")
   // Set when the token is swapped for a new one, or on logout.
   revokedAt DateTime? @map("revoked_at")
+  // True when it ended by being swapped for a new one (not by logout), so a
+  // second tab refreshing at the same moment can be told apart from a thief.
+  rotated   Boolean   @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

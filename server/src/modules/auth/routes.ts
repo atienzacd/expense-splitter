@@ -93,6 +93,14 @@ export async function authRoutes(app: FastifyInstance, options: AuthRoutesOption
     if (outcome.status === "reused") {
       logSecurityEvent(request, "auth.refresh_token_reused", { userId: outcome.userId });
     }
+    // Another tab refreshed with this token a moment ago. Its response carries
+    // the new cookies, so these must not be cleared or that tab's work is undone.
+    if (outcome.status === "superseded") {
+      return reply.status(409).send({
+        error: "RefreshSuperseded",
+        message: "This login was just renewed by another tab.",
+      });
+    }
     if (outcome.status !== "rotated") {
       clearLoginCookies(reply, cookies);
       return reply.status(401).send(sessionExpired);

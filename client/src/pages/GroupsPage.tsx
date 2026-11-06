@@ -1,6 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { z } from "zod";
+import { limitMessageOr } from "../api/client.ts";
 import type { MyInvitation } from "../api/groups.ts";
 import { Card } from "../components/Card.tsx";
 import { Button, FormAlert, SelectField, TextField } from "../components/form.tsx";
@@ -69,7 +70,9 @@ function InvitationRow({ invitation }: { invitation: MyInvitation }) {
           Decline
         </Button>
       </div>
-      {respond.isError && <FormAlert>Couldn't respond to this invitation. Please try again.</FormAlert>}
+      {respond.isError && (
+        <FormAlert>{limitMessageOr(respond.error, "Couldn't respond to this invitation. Please try again.")}</FormAlert>
+      )}
     </li>
   );
 }
@@ -126,7 +129,7 @@ function CreateGroup() {
       </p>
       {create.isError && (
         <div className="mt-3">
-          <FormAlert>Couldn't create the group. Please try again.</FormAlert>
+          <FormAlert>{limitMessageOr(create.error, "Couldn't create the group. Please try again.")}</FormAlert>
         </div>
       )}
     </Card>

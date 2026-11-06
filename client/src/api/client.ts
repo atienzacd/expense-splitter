@@ -39,10 +39,21 @@ function send(path: string, init: RequestInit): Promise<Response> {
 // same one, so a page loading several things at once refreshes only once.
 let refreshing: Promise<boolean> | undefined;
 
+// How long to wait for another tab's renewed cookies to arrive.
+const SUPERSEDED_WAIT_MS = 500;
+
 /** Renews the login cookies. Resolves false when there is no session to renew. */
 export function refreshSession(): Promise<boolean> {
   refreshing ??= send("/auth/refresh", { method: "POST" })
-    .then((response) => response.ok)
+    .then(async (response) => {
+      // 409: another tab renewed the login at the same moment, and the browser
+      // gets its new cookies (shared between tabs). Give them a moment to land.
+      if (response.status === 409) {
+        await new Promise((resolve) => setTimeout(resolve, SUPERSEDED_WAIT_MS));
+        return true;
+      }
+      return response.ok;
+    })
     .catch(() => false)
     .finally(() => {
       refreshing = undefined;
@@ -77,4 +88,12 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 /** Sends `data` as a JSON POST. */
 export function post<T>(path: string, data?: unknown): Promise<T> {
   return api<T>(path, { method: "POST", body: data === undefined ? undefined : JSON.stringify(data) });
+}
+
+/**
+ * The server's own message when it refused because a limit was reached (it
+ * says which, and what to do), otherwise `fallback`.
+ */
+export function limitMessageOr(error: unknown, fallback: string): string {
+  return error instanceof ApiError && error.code === "LimitReached" ? error.message : fallback;
 }

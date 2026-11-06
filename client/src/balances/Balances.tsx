@@ -1,4 +1,5 @@
 import { type FormEvent, useState } from "react";
+import { limitMessageOr } from "../api/client.ts";
 import type { Transfer } from "../api/balances.ts";
 import type { Member } from "../api/groups.ts";
 import { Card } from "../components/Card.tsx";
@@ -141,7 +142,7 @@ function TransferRow({ groupId, transfer, meId, isGuest, nameOf, currency }: Tra
           </Button>
         </div>
       )}
-      {record.isError && <FormAlert>Couldn't record the payment. Please try again.</FormAlert>}
+      {record.isError && <FormAlert>{limitMessageOr(record.error, "Couldn't record the payment. Please try again.")}</FormAlert>}
     </li>
   );
 }
@@ -228,7 +229,7 @@ function OtherPayment({ groupId, members, meId, currency }: Props) {
           Record payment
         </Button>
         {recorded && <FormSuccess>{recorded}</FormSuccess>}
-        {record.isError && <FormAlert>Couldn't record the payment. Please try again.</FormAlert>}
+        {record.isError && <FormAlert>{limitMessageOr(record.error, "Couldn't record the payment. Please try again.")}</FormAlert>}
       </form>
     </details>
   );

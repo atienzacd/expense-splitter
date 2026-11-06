@@ -74,6 +74,17 @@ describe("renewing an expired login", () => {
     expect(requestsMade(fetchMock)).toEqual(["GET /api/groups", "POST /api/auth/refresh"]);
   });
 
+  it("retries after another tab renewed the login at the same moment", async () => {
+    let groupCalls = 0;
+    const fetchMock = mockApi({
+      "GET /api/groups": () => (++groupCalls === 1 ? expired : { status: 200, body: { groups: [] } }),
+      "POST /api/auth/refresh": { status: 409, body: { error: "RefreshSuperseded", message: "Renewed by another tab" } },
+    });
+
+    await expect(api("/groups")).resolves.toEqual({ groups: [] });
+    expect(requestsMade(fetchMock)).toEqual(["GET /api/groups", "POST /api/auth/refresh", "GET /api/groups"]);
+  });
+
   it("shares one refresh between requests that expire at the same time", async () => {
     let refreshed = false;
     const fetchMock = mockApi({
