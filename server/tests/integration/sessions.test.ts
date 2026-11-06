@@ -86,10 +86,32 @@ describe("POST /api/auth/refresh", () => {
 
   it("each refresh token works only once", async () => {
     await refresh(ana.refreshToken);
+    const sessionsBefore = await ctx.prisma.session.count();
     const again = await refresh(ana.refreshToken);
 
-    expect(again.statusCode).toBe(401);
-    expect(again.json()).toMatchObject({ error: "SessionExpired" });
+    expect(again.statusCode).not.toBe(200);
+    expect(cookieFrom(again, "access_token")).toBeUndefined();
+    expect(await ctx.prisma.session.count()).toBe(sessionsBefore);
+  });
+
+  it("tells a second tab refreshing at the same moment to wait, without clearing the new cookies", async () => {
+    // Both tabs send the same token; the first one wins.
+    const [first, second] = [await refresh(ana.refreshToken), await refresh(ana.refreshToken)];
+
+    expect(first.statusCode).toBe(200);
+    expect(second.statusCode).toBe(409);
+    expect(second.json()).toMatchObject({ error: "RefreshSuperseded" });
+    // No Set-Cookie at all, so the cookies the first response set survive.
+    expect(second.headers["set-cookie"]).toBeUndefined();
+    // And it isn't mistaken for theft: the new session still works.
+    const newToken = cookieFrom(first, "refresh_token")!;
+    expect((await refresh(newToken)).statusCode).toBe(200);
+  });
+
+  it("still refuses a logged-out refresh token, even right after logout", async () => {
+    await ctx.app.inject({ method: "POST", url: "/api/auth/logout", cookies: { refresh_token: ana.refreshToken } });
+    const after = await refresh(ana.refreshToken);
+    expect(after.statusCode).toBe(401);
   });
 
   it("ends every session when an old refresh token is reused, as it may have been stolen", async () => {

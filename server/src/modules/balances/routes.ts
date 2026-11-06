@@ -5,7 +5,8 @@ import { HttpError } from "../../errors.ts";
 import { logSecurityEvent } from "../../security.ts";
 import { computeBalances, simplifyDebts } from "../../lib/settle.ts";
 import { centavos } from "../../lib/schemas.ts";
-import { groupParams, requireAllMembers, requireMembership } from "../groups/membership.ts";
+import { LIMITS, limitReached } from "../../lib/limits.ts";
+import { groupParams, lockGroup, requireAllMembers, requireMembership } from "../groups/membership.ts";
 
 export type BalanceRoutesOptions = { prisma: PrismaClient };
 
@@ -75,17 +76,23 @@ export async function balanceRoutes(app: FastifyInstance, { prisma }: BalanceRou
     if (toUserId === fromUserId) {
       throw new HttpError(400, "InvalidSettlement", "A payment needs two different people");
     }
-    await requireAllMembers(prisma, groupId, [fromUserId, toUserId]);
-    if (fromUserId !== request.userId) {
-      const payer = await prisma.user.findUniqueOrThrow({ where: { id: fromUserId }, select: { isGuest: true } });
-      if (!payer.isGuest) {
-        throw new HttpError(403, "NotYourPayment", "Only they can record their own payments.");
+    // Under the group's lock, so nobody leaves between the membership check and the insert.
+    const settlement = await prisma.$transaction(async (tx) => {
+      await lockGroup(tx, groupId);
+      if ((await tx.settlement.count({ where: { groupId } })) >= LIMITS.paymentsPerGroup) {
+        throw limitReached(`A group can have at most ${LIMITS.paymentsPerGroup} payments. Start a new group for the next trip.`);
       }
-    }
-
-    const settlement = await prisma.settlement.create({
-      data: { groupId, fromUserId, toUserId, amount },
-      select: settlementSelect,
+      await requireAllMembers(tx, groupId, [fromUserId, toUserId]);
+      if (fromUserId !== request.userId) {
+        const payer = await tx.user.findUniqueOrThrow({ where: { id: fromUserId }, select: { isGuest: true } });
+        if (!payer.isGuest) {
+          throw new HttpError(403, "NotYourPayment", "Only they can record their own payments.");
+        }
+      }
+      return tx.settlement.create({
+        data: { groupId, fromUserId, toUserId, amount },
+        select: settlementSelect,
+      });
     });
     logSecurityEvent(request, "settlement.created", {
       groupId,

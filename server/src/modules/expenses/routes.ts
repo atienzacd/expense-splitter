@@ -6,7 +6,8 @@ import { logSecurityEvent } from "../../security.ts";
 import { ConversionError, convert, type Currency, currency, exchangeRate } from "../../lib/currency.ts";
 import { centavos } from "../../lib/schemas.ts";
 import { type Share, splitByPercentage, splitEqually, splitExact, splitProportionally } from "../../lib/split.ts";
-import { groupParams, listMemberIds, requireAllMembers, requireMembership } from "../groups/membership.ts";
+import { LIMITS, limitReached } from "../../lib/limits.ts";
+import { type Db, groupParams, listMemberIds, lockGroup, requireAllMembers, requireMembership } from "../groups/membership.ts";
 
 export type ExpenseRoutesOptions = { prisma: PrismaClient };
 
@@ -106,23 +107,29 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
       }
       original = { originalCurrency: paidIn, originalAmount: body.amount, exchangeRate: body.exchangeRate };
     }
-    const shares = await computeSplits(prisma, groupId, body.amount, amount, body.split);
-    await requireAllMembers(prisma, groupId, [paidById, ...shares.map((s) => s.userId)]);
-    // Tiny amounts can leave someone owing 0 (₱0.02 three ways); they aren't stored.
-    const splits = shares.filter((share) => share.amountOwed > 0);
+    // Under the group's lock, so nobody leaves between the membership check and the insert.
+    const expense = await prisma.$transaction(async (tx) => {
+      await lockGroup(tx, groupId);
+      if ((await tx.expense.count({ where: { groupId } })) >= LIMITS.expensesPerGroup) {
+        throw limitReached(`A group can have at most ${LIMITS.expensesPerGroup} expenses. Start a new group for the next trip.`);
+      }
+      const shares = await computeSplits(tx, groupId, body.amount, amount, body.split);
+      await requireAllMembers(tx, groupId, [paidById, ...shares.map((s) => s.userId)]);
+      // Tiny amounts can leave someone owing 0 (₱0.02 three ways); they aren't stored.
+      const splits = shares.filter((share) => share.amountOwed > 0);
 
-    // Creating the expense and its splits in one statement keeps them atomic.
-    const expense = await prisma.expense.create({
-      data: {
-        groupId,
-        paidById,
-        description: body.description,
-        amount,
-        ...original,
-        splitType: body.split.type,
-        splits: { create: splits },
-      },
-      select: expenseSelect,
+      return tx.expense.create({
+        data: {
+          groupId,
+          paidById,
+          description: body.description,
+          amount,
+          ...original,
+          splitType: body.split.type,
+          splits: { create: splits },
+        },
+        select: expenseSelect,
+      });
     });
     logSecurityEvent(request, "expense.created", {
       groupId,
@@ -140,8 +147,12 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
     const { groupId, expenseId } = expenseParams.parse(request.params);
     await requireMembership(prisma, groupId, request.userId);
 
-    // Scoping by groupId stops a member of one group deleting another group's expense.
-    const { count } = await prisma.expense.deleteMany({ where: { id: expenseId, groupId } });
+    // Scoping by groupId stops a member of one group deleting another group's
+    // expense. Deleting changes balances, so it waits for the group's lock too.
+    const { count } = await prisma.$transaction(async (tx) => {
+      await lockGroup(tx, groupId);
+      return tx.expense.deleteMany({ where: { id: expenseId, groupId } });
+    });
     if (count === 0) {
       throw new HttpError(404, "ExpenseNotFound", "Expense not found");
     }
@@ -156,7 +167,7 @@ export async function expenseRoutes(app: FastifyInstance, { prisma }: ExpenseRou
  * another currency, each person then gets the same proportion of `amount`.
  */
 async function computeSplits(
-  prisma: PrismaClient,
+  prisma: Db,
   groupId: string,
   paidAmount: number,
   amount: number,

@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router";
 import { z } from "zod";
-import { ApiError } from "../api/client.ts";
+import { ApiError, limitMessageOr } from "../api/client.ts";
 import type { GroupDetails } from "../api/groups.ts";
 import { useCurrentUser } from "../auth/useAuth.ts";
 import { Balances, PaymentHistory } from "../balances/Balances.tsx";
@@ -19,6 +19,8 @@ import {
   useRemoveGuest,
 } from "../groups/queries.ts";
 import { validate } from "../lib/forms.ts";
+
+const expiryFormat = new Intl.DateTimeFormat("en-PH", { month: "short", day: "numeric" });
 
 const inviteSchema = z.object({
   email: z.string().trim().min(1, "Enter their email").pipe(z.email("Enter a valid email address")),
@@ -147,7 +149,7 @@ function AddGuest({ groupId }: { groupId: string }) {
         setError(
           failure instanceof ApiError && failure.code === "NameTaken"
             ? failure.message
-            : "Couldn't add them. Please try again.",
+            : limitMessageOr(failure, "Couldn't add them. Please try again."),
         ),
     });
   }
@@ -213,6 +215,8 @@ function Invite({ groupId }: { groupId: string }) {
       onError: (failure) => {
         if (failure instanceof ApiError && failure.code === "AlreadyAMember") {
           setError("That person is already in this group.");
+        } else if (failure instanceof ApiError && failure.code === "LimitReached") {
+          setError(failure.message);
         } else if (failure instanceof ApiError && failure.status === 429) {
           setError("You've sent a lot of invitations. Please wait a minute.");
         } else {
@@ -243,7 +247,7 @@ function Invite({ groupId }: { groupId: string }) {
         <div className="mt-3">
           <FormSuccess>
             Invitation sent to {sentTo}. They'll see it after logging in, or after signing up if they don't have an
-            account yet.
+            account yet. It lasts a week.
           </FormSuccess>
         </div>
       )}
@@ -254,7 +258,12 @@ function Invite({ groupId }: { groupId: string }) {
           <ul className="space-y-2">
             {invitations.data.map((pending) => (
               <li key={pending.id} className="flex items-center justify-between gap-3">
-                <span className="truncate">{pending.email}</span>
+                <span className="min-w-0">
+                  <span className="block truncate">{pending.email}</span>
+                  <span className="block text-sm text-slate-500 dark:text-slate-400">
+                    Expires {expiryFormat.format(new Date(pending.expiresAt))}
+                  </span>
+                </span>
                 <Button
                   block={false}
                   variant="secondary"

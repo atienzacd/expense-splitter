@@ -191,3 +191,22 @@ describe("the expense form after adding someone", () => {
     expect(screen.getByLabelText("Paid by")).toHaveTextContent("Lola Nena");
   });
 });
+
+describe("when a group is full", () => {
+  it("shows the server's explanation", async () => {
+    mockApi(
+      api({
+        [`POST /api/groups/${groupId}/guests`]: {
+          status: 409,
+          body: { error: "LimitReached", message: "A group can have at most 50 people." },
+        },
+      }),
+    );
+    renderAt(`/groups/${groupId}`);
+    const user = userEvent.setup();
+
+    await user.type(await screen.findByLabelText("Their name"), "Ate Joy");
+    await user.click(screen.getByRole("button", { name: "Add to group" }));
+    expect(await screen.findByText("A group can have at most 50 people.")).toBeInTheDocument();
+  });
+});

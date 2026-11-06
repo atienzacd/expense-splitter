@@ -1,6 +1,7 @@
 import { buildApp } from "./app.ts";
 import { loadConfig } from "./config.ts";
 import { createPrismaClient } from "./db.ts";
+import { scheduleCleanUp } from "./maintenance.ts";
 import { createFrankfurterSource } from "./modules/rates/source.ts";
 
 const config = loadConfig();
@@ -19,10 +20,13 @@ const app = await buildApp({
   exchangeRates: createFrankfurterSource({ baseUrl: config.EXCHANGE_RATES_URL }),
 });
 
+const stopCleanUp = scheduleCleanUp(prisma, app.log);
+
 // Finish in-flight requests and close the database pool on Ctrl+C or `docker stop`.
 async function shutdown(signal: NodeJS.Signals): Promise<void> {
   app.log.info(`${signal} received, shutting down`);
   try {
+    stopCleanUp();
     await app.close();
     await prisma.$disconnect();
     process.exit(0);

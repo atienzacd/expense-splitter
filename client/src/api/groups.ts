@@ -13,10 +13,18 @@ export type GroupDetails = {
   createdById: string;
   members: Member[];
 };
-export type PendingInvitation = { id: string; email: string; createdAt: string; invitedBy: { id: string; name: string } };
+export type PendingInvitation = {
+  id: string;
+  email: string;
+  createdAt: string;
+  /** Invitations last a week; inviting again renews it. */
+  expiresAt: string;
+  invitedBy: { id: string; name: string };
+};
 export type MyInvitation = {
   id: string;
   createdAt: string;
+  expiresAt: string;
   group: { id: string; name: string };
   invitedBy: { id: string; name: string };
 };

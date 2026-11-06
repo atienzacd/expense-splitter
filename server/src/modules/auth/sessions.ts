@@ -12,14 +12,16 @@ import type { PrismaClient } from "../../db.ts";
  */
 
 const TOKEN_BYTES = 32;
-// Two tabs refreshing at the same moment both send the same token; the second
-// is turned away without ending every session (cookies are shared between
-// tabs, so it already has the new one).
+// Two tabs refreshing at the same moment both send the same token. The second
+// is told it was "superseded" instead of ending every session: cookies are
+// shared between tabs, so the browser already has (or is about to get) the
+// new ones from the first.
 const REUSE_GRACE_MS = 30_000;
 
 export type RefreshOutcome =
   | { status: "rotated"; userId: string; sessionId: string; token: string; expiresAt: Date }
   | { status: "reused"; userId: string }
+  | { status: "superseded" }
   | { status: "invalid" };
 
 function hashToken(token: string): string {
@@ -46,7 +48,9 @@ export async function rotateSession(prisma: PrismaClient, token: string, ttlSeco
 
   const now = Date.now();
   if (session.revokedAt) {
-    if (now - session.revokedAt.getTime() < REUSE_GRACE_MS) return { status: "invalid" };
+    if (now - session.revokedAt.getTime() < REUSE_GRACE_MS) {
+      return session.rotated ? { status: "superseded" } : { status: "invalid" };
+    }
     await revokeAllSessions(prisma, session.userId);
     return { status: "reused", userId: session.userId };
   }
@@ -56,9 +60,9 @@ export async function rotateSession(prisma: PrismaClient, token: string, ttlSeco
   // so the same token can't be exchanged twice at once.
   const { count } = await prisma.session.updateMany({
     where: { id: session.id, revokedAt: null },
-    data: { revokedAt: new Date(now) },
+    data: { revokedAt: new Date(now), rotated: true },
   });
-  if (count === 0) return { status: "invalid" };
+  if (count === 0) return { status: "superseded" };
 
   const next = await createSession(prisma, session.userId, ttlSeconds);
   return { status: "rotated", userId: session.userId, ...next };
