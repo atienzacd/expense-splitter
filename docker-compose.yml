@@ -3,7 +3,7 @@
 # Database only:    docker compose up -d db   (for `npm run dev:server`)
 services:
   db:
-    image: postgres:17
+    image: postgres:18
     # Also used in .github/workflows/ci.yml; Dependabot only updates this file, so keep them in step.
     environment:
       POSTGRES_USER: splitter
